@@ -8,6 +8,7 @@ import static org.junit.Assert.*;
 import org.junit.Test;
 import org.opencb.biodata.formats.alignment.AlignmentHelper;
 import org.opencb.biodata.formats.alignment.io.AlignmentRegionDataReader;
+import org.opencb.biodata.formats.alignment.io.AlignmentRegionDataWriter;
 import org.opencb.biodata.formats.alignment.sam.io.AlignmentSamDataReader;
 import org.opencb.biodata.models.alignment.Alignment;
 import org.opencb.biodata.models.alignment.AlignmentRegion;
@@ -15,9 +16,11 @@ import org.opencb.biodata.models.alignment.exceptions.ShortReferenceSequenceExce
 import org.opencb.biodata.models.feature.Region;
 import org.opencb.commons.containers.map.QueryOptions;
 import org.opencb.commons.run.Task;
+import org.opencb.opencga.storage.alignment.tasks.AlignmentRegionCompactorTask;
 
 public class AlignmentLightRegionJsonTest {
-
+    
+/**
     public class AlignmentRegionCompactorTask extends Task<AlignmentRegion> {
 
         private final QueryOptions queryOptions;
@@ -55,31 +58,61 @@ public class AlignmentLightRegionJsonTest {
         }
     }
     
-    
+    */
+
     @Test
     public void createtest() throws IOException{
+        String filename = "/tmp/NA12154.chrom20.ILLUMINA.bwa.CEU.low_coverage.20120522.bam";
 //        AlignmentSamDataReader reader = new AlignmentSamDataReader("/tmp/small.bam", "study");
-        AlignmentSamDataReader reader = new AlignmentSamDataReader("/tmp/NA12154.chrom20.ILLUMINA.bwa.CEU.low_coverage.20120522.bam", "study");
+        AlignmentSamDataReader reader = new AlignmentSamDataReader(filename, "study");
         AlignmentRegionDataReader regionreader = new AlignmentRegionDataReader(reader);
+        AlignmentLightDataWriter gzipWriter = new AlignmentLightDataWriter("/tmp/alignmentJsonLightNoUnmapped", true);
+        AlignmentLightDataWriter jsonWriter = new AlignmentLightDataWriter("/tmp/alignmentJsonLightNoUnmapped", false);
         regionreader.setMaxSequenceSize(2000);
         AlignmentRegionCompactorTask compactor = new AlignmentRegionCompactorTask();
+        
+        /*
+         * Open/Pre 
+         */
         regionreader.open();
         regionreader.pre();
+        
+        gzipWriter.open();
+        gzipWriter.pre();
+        
+        jsonWriter.open();
+        jsonWriter.pre();
+        
         compactor.pre();
         
         
-        List<AlignmentRegion> regions = regionreader.read(50);
-        compactor.apply(regions);
-        for(AlignmentRegion r : regions){
-            List<Alignment> reads = r.getAlignments();
-            int chunkStart = (int) r.getStart();
-            AlignmentLightRegionJson.Builder builder = new AlignmentLightRegionJson.Builder("20", chunkStart, "2K");
-            builder.addAlignmentsFile(reads, "small.bam");
-            AlignmentLightRegionJson alignmentLightRegionJson = builder.build();
+        List<AlignmentRegion> regions;
+        while(!(regions = regionreader.read(10)).isEmpty()){
+            compactor.apply(regions);
+            for(AlignmentRegion r : regions){
+                List<Alignment> reads = r.getAlignments();
+                int chunkStart = (int) r.getStart();
+                AlignmentLightRegionJson.Builder builder = new AlignmentLightRegionJson.Builder("20", chunkStart, "2K");
+                builder.addAlignmentsFile(reads, filename);
+                AlignmentLightRegionJson alignmentLightRegionJson = builder.build();
+                gzipWriter.write(alignmentLightRegionJson);
+                jsonWriter.write(alignmentLightRegionJson);
+            }
         }
         
+        /*
+        *  Post/Close
+        */
         compactor.post();
+        
         regionreader.post();
         regionreader.close();
+    
+        gzipWriter.post();
+        gzipWriter.close();
+        
+        jsonWriter.post();
+        jsonWriter.close();
+        
     }
 }

@@ -1,11 +1,10 @@
 package org.opencb.opencga.storage.alignment.json;
 
-import org.opencb.biodata.models.alignment.Alignment;
-
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import org.opencb.biodata.models.alignment.Alignment;
 
 /**
  * Created by jacobo on 5/08/14.
@@ -211,31 +210,33 @@ public class AlignmentLightRegionJson {
                 reads.add(read);
 
                 //Check differences
-                for(Alignment.AlignmentDifference d : a.getDifferences()){
-                    if(d.getOp() == Alignment.AlignmentDifference.SOFT_CLIPPING){
-                        diffS++;
-                        if(alignmentIndex >> 12 != 0){
-                            System.out.println("[ERROR] Soft AlignmentIndex");
-                        }
-                        if(d.getLength() >> 8 != 0){
-                            System.out.println("[ERROR] Soft Length");
-                        }
-                        int soft = ((alignmentIndex & 0xFFF) << 20) + ((d.getLength() & 0xFF) << 12) + ((d.getPos()==0? 1: 0)<<11);
-                        softs.add(soft);
-                    } else {
-                        String diffKey = d.getPos()+a.getUnclippedStart()+"_"+d.getOp()+"_"+ (d.getSeq()==null?d.getLength()+"":d.getSeq()); //Critical point
-                        AlignmentLightRegionJson.Difference diff;
-                        if ((diff = mapDiff.get(diffKey)) == null) {
-                            //Create new difference if necessary
-                            diff = new AlignmentLightRegionJson.Difference((int)(d.getPos()+a.getUnclippedStart()-chunkStart),d.getLength(), d.getOp(), d.getSeq());
-                            mapDiff.put(diffKey, diff);
-                            diffs.add(diff);
-
+                if((a.getFlags() & Alignment.SEGMENT_UNMAPPED) == 0){
+                    for(Alignment.AlignmentDifference d : a.getDifferences()){
+                        if(d.getOp() == Alignment.AlignmentDifference.SOFT_CLIPPING){
+                            diffS++;
+                            if(alignmentIndex >> 12 != 0){
+                                System.out.println("[ERROR] Soft AlignmentIndex");
+                            }
+                            if(d.getLength() >> 8 != 0){
+                                System.out.println("[ERROR] Soft Length");
+                            }
+                            int soft = ((alignmentIndex & 0xFFF) << 20) + ((d.getLength() & 0xFF) << 12) + ((d.getPos()==0? 1: 0)<<11);
+                            softs.add(soft);
                         } else {
-                            diffRepe++;
+                            String diffKey = d.getPos()+a.getUnclippedStart()+"_"+d.getOp()+"_"+ (d.getSeq()==null?d.getLength()+"":d.getSeq()); //Critical point
+                            AlignmentLightRegionJson.Difference diff;
+                            if ((diff = mapDiff.get(diffKey)) == null) {
+                                //Create new difference if necessary
+                                diff = new AlignmentLightRegionJson.Difference((int)(d.getPos()+a.getUnclippedStart()-chunkStart),d.getLength(), d.getOp(), d.getSeq());
+                                mapDiff.put(diffKey, diff);
+                                diffs.add(diff);
+
+                            } else {
+                                diffRepe++;
+                            }
+                            //Add Alignment to the difference reads list
+                            diff.addRead(fileIndex, alignmentIndex);
                         }
-                        //Add Alignment to the difference reads list
-                        diff.addRead(fileIndex, alignmentIndex);
                     }
                 }
                 alignmentIndex++;   //Increment the index for the next alignments
