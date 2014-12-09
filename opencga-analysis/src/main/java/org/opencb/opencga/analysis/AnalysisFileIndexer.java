@@ -74,7 +74,7 @@ public class AnalysisFileIndexer {
 
 
         //Create commandLine
-        ObjectMap indexAttributes = new ObjectMap();
+        ObjectMap indexAttributes = new ObjectMap();    //to be filled by createCommandLine()
         String commandLine = createCommandLine(study, file, storageEngine, temporalOutDirUri,
                 indexAttributes);
 
@@ -86,7 +86,7 @@ public class AnalysisFileIndexer {
 
         //Create job
         ObjectMap jobResourceManagerAttributes = new ObjectMap();
-        jobResourceManagerAttributes.put(Job.JOB_SCHEDULER_NAME, randomString);
+//        jobResourceManagerAttributes.put(Job.JOB_SCHEDULER_NAME, randomString);
         jobResourceManagerAttributes.put(Job.TYPE, Job.TYPE_INDEX);
         jobResourceManagerAttributes.put(Job.INDEXED_FILE_ID, index.getId());
 

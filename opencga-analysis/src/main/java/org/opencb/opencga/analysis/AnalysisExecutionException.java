@@ -12,4 +12,8 @@ public class AnalysisExecutionException extends Exception {
     public AnalysisExecutionException(Throwable cause) {
         super(cause);
     }
+
+    public AnalysisExecutionException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

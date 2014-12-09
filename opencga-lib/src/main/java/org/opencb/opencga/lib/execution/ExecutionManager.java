@@ -1,6 +1,5 @@
 package org.opencb.opencga.lib.execution;
 
-import org.opencb.datastore.core.ObjectMap;
 import org.opencb.opencga.lib.common.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,23 +12,12 @@ import java.util.*;
  */
 public abstract class ExecutionManager {
 
-        public final static String QUEUES               = "OPENCGA.EXEC.QUEUES";
-        public final static String DEFAULT_QUEUE        = "OPENCGA.EXEC.QUEUE.DEFAULT";
-//    public final static String QUEUES               = "OPENCGA.SGE.AVAILABLE.QUEUES";
-//    public final static String DEFAULT_QUEUE        = "OPENCGA.SGE.DEFAULT.QUEUE";
+    public final static String QUEUES               = "OPENCGA.EXEC.QUEUES";
+    public final static String DEFAULT_QUEUE        = "OPENCGA.EXEC.QUEUE.DEFAULT";
     public final static String QUEUE_NAME           = "OPENCGA.EXEC.QUEUE.";    //OPENCGA.EXEC.QUEUE.<QUEUE_NAME>.TOOLS
-
-    public static final String UNKNOWN = "unknown";
-    public static final String RUNNING = "running";
-    public static final String TRANSFERRED = "transferred";
-    public static final String QUEUED = "queued";
-    public static final String ERROR = "error";
-    public static final String FINISHED = "finished";
-    public static final String EXECUTION_ERROR = "execution error";
 
     protected static Logger logger = LoggerFactory.getLogger(ExecutionManager.class);
     protected static Properties analysisProperties = Config.getAnalysisProperties();
-//    protected static Properties analysisProperties = new Properties();
 
 
     /**
@@ -63,7 +51,7 @@ public abstract class ExecutionManager {
     public abstract String queueJob(String toolName, String jobName, String hostName, String outDir, String commandLine, String queue, String logFilePrefix)
             throws Exception;
 
-    public abstract String status(String jobExecutionId, ObjectMap attributes) throws Exception;
+    public abstract ExecutionJobStatus status(String jobExecutionId) throws Exception;
 
     protected static String getDefaultQueue() {
         if (analysisProperties.containsKey(DEFAULT_QUEUE)) {

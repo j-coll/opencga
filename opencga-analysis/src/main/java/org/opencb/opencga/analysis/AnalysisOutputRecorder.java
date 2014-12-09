@@ -83,9 +83,9 @@ public class AnalysisOutputRecorder {
         }
 
         try {
-            switch(job.getResourceManagerAttributes().get(Job.TYPE).toString()) {
+            switch(job.getExecutionAttributes().get(Job.TYPE).toString()) {
                 case Job.TYPE_INDEX:
-                    Integer indexedFileId = (Integer) job.getResourceManagerAttributes().get(Job.INDEXED_FILE_ID);
+                    Integer indexedFileId = (Integer) job.getExecutionAttributes().get(Job.INDEXED_FILE_ID);
                     fileIds.add(indexedFileId);
                     ObjectMap parameters = new ObjectMap("status", File.READY);
                     catalogManager.modifyFile(indexedFileId, parameters, sessionId);

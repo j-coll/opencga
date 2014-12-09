@@ -1,7 +1,5 @@
 package org.opencb.opencga.lib.execution;
 
-import org.opencb.datastore.core.ObjectMap;
-
 import java.net.URI;
 
 /**
@@ -20,7 +18,7 @@ public class LocalThreadExecutionManager extends ExecutionManager {
     }
 
     @Override
-    public String status(String jobExecutionId, ObjectMap attributes) throws Exception {
+    public ExecutionJobStatus status(String jobExecutionId) throws Exception {
         return null;
     }
 }

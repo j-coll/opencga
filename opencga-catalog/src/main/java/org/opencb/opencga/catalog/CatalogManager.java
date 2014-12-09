@@ -1564,7 +1564,7 @@ public class CatalogManager {
 
     public QueryResult<Job> createJob(int studyId, String name, String toolName, String description, String commandLine,
                                       URI tmpOutDirUri, int outDirId, List<Integer> inputFiles,
-                                      Map<String, Object> resourceManagerAttributes, String sessionId)
+                                      Map<String, Object> executionAttributes, String sessionId)
             throws CatalogManagerException, CatalogIOManagerException {
         checkParameter(sessionId, "sessionId");
         checkParameter(name, "name");
@@ -1588,8 +1588,8 @@ public class CatalogManager {
         }
 
         Job job = new Job(name, userId, toolName, description, commandLine, outDir.getId(), tmpOutDirUri, inputFiles);
-        if(resourceManagerAttributes != null) {
-            job.getResourceManagerAttributes().putAll(resourceManagerAttributes);
+        if(executionAttributes != null) {
+            job.getAttributes().putAll(executionAttributes);
         }
 
         return catalogDBAdaptor.createJob(studyId, job);

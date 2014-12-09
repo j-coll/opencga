@@ -36,7 +36,7 @@ public class Job {
     private List<String> tags;
     private Map<String, Object> attributes;
 
-    private Map<String, Object> resourceManagerAttributes;
+    private Map<String, Object> executionAttributes;
 
 
     public static final String PREPARED = "prepared";
@@ -50,7 +50,9 @@ public class Job {
     public static final String TYPE = "type";
     public static final String TYPE_ANALYSIS = "analysis";
     public static final String TYPE_INDEX    = "index";
-    public static final String JOB_SCHEDULER_NAME = "jobSchedulerName";
+//    public static final String JOB_SCHEDULER_NAME = "jobSchedulerName";
+    public static final String EXECUTION_MANAGER = "executionManager";
+    public static final String JOB_EXECUTION_ID = "jobExecutionId";
     public static final String INDEXED_FILE_ID = "indexedFileId";
 
     public Job() {
@@ -74,7 +76,7 @@ public class Job {
     public Job(int id, String name, String userId, String toolName, String date, String description,
                long startTime, long endTime, String outputError, String commandLine, int visits, String status,
                long diskUsage, int outDirId, URI tmpOutDirUri, List<Integer> input,
-               List<Integer> output, List<String> tags, Map<String, Object> attributes, Map<String, Object> resourceManagerAttributes) {
+               List<Integer> output, List<String> tags, Map<String, Object> attributes, Map<String, Object> executionAttributes) {
         this.id = id;
         this.name = name;
         this.userId = userId;
@@ -96,11 +98,11 @@ public class Job {
         this.output = output;
         this.tags = tags;
         this.attributes = attributes;
-        this.resourceManagerAttributes = resourceManagerAttributes;
+        this.executionAttributes = executionAttributes;
 
         //Initializing attributes maps.
-        this.resourceManagerAttributes.put(Job.JOB_SCHEDULER_NAME, "");
-        this.resourceManagerAttributes.put(Job.TYPE, Job.TYPE_ANALYSIS);
+//        this.executionAttributes.put(Job.JOB_SCHEDULER_NAME, "");
+        this.executionAttributes.put(Job.TYPE, Job.TYPE_ANALYSIS);
     }
 
     @Override
@@ -125,7 +127,7 @@ public class Job {
                 ", output=" + output +
                 ", tags=" + tags +
                 ", attributes=" + attributes +
-                ", resourceManagerAttributes=" + resourceManagerAttributes +
+                ", executionAttributes=" + executionAttributes +
                 '}';
     }
 
@@ -282,11 +284,11 @@ public class Job {
     }
 
 
-    public Map<String, Object> getResourceManagerAttributes() {
-        return resourceManagerAttributes;
+    public Map<String, Object> getExecutionAttributes() {
+        return executionAttributes;
     }
 
-    public void setResourceManagerAttributes(Map<String, Object> resourceManagerAttributes) {
-        this.resourceManagerAttributes = resourceManagerAttributes;
+    public void setExecutionAttributes(Map<String, Object> executionAttributes) {
+        this.executionAttributes = executionAttributes;
     }
 }

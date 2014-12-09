@@ -18,9 +18,9 @@ import org.opencb.opencga.catalog.db.CatalogManagerException;
 import org.opencb.opencga.catalog.io.CatalogIOManager;
 import org.opencb.opencga.catalog.io.CatalogIOManagerException;
 import org.opencb.opencga.lib.execution.ExecutionManagerFactory;
-import org.opencb.opencga.lib.execution.SgeExecutionManager;
 import org.opencb.opencga.lib.common.Config;
 import org.opencb.opencga.lib.common.TimeUtils;
+import org.opencb.opencga.lib.execution.ExecutionJobStatus;
 import org.slf4j.LoggerFactory;
 
 import org.slf4j.Logger;
@@ -103,48 +103,54 @@ public class DaemonLoop implements Runnable {
             try {
                 QueryResult<Job> unfinishedJobs = catalogManager.getUnfinishedJobs(sessionId);
                 for (Job job : unfinishedJobs.getResult()) {
-                    ObjectMap attributes = new ObjectMap();
-                    String status = ExecutionManagerFactory.getFactory().getExecutionManager(ExecutionManagerFactory.SGE)
-                            .status(job.getResourceManagerAttributes().get(Job.JOB_SCHEDULER_NAME).toString(), attributes);
-                    String jobStatus = job.getStatus();
-//                    String type = job.getResourceManagerAttributes().get(Job.TYPE).toString();
-//                    System.out.println("job : {id: " + job.getId() + ", status: '" + job.getStatus() + "', name: '" + job.getName() + "'}, sgeStatus : " + status);
-                    logger.info("job : {id: " + job.getId() + ", status: '" + job.getStatus() + "', name: '" + job.getName() + "'}, sgeStatus : " + status);
 
-                    //Track SGEManager
-                    switch(status) {
-                        case SgeExecutionManager.FINISHED:
-                            if(!Job.DONE.equals(job.getStatus())) {
-                                catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.DONE), sessionId);
-                                jobStatus = Job.DONE;
-                            }
-                            break;
-                        case SgeExecutionManager.ERROR:
-                        case SgeExecutionManager.EXECUTION_ERROR:
-                            if(!Job.ERROR.equals(job.getStatus())) {
-                                catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.ERROR), sessionId);
-                                jobStatus = Job.ERROR;
-                            }
-                            break;
-                        case SgeExecutionManager.QUEUED:
-                            if(!Job.QUEUED.equals(job.getStatus())) {
-                                catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.QUEUED), sessionId);
-                                jobStatus = Job.QUEUED;
-                            }
-                            break;
-                        case SgeExecutionManager.RUNNING:
-                            if(!Job.RUNNING.equals(job.getStatus())) {
-                                catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.RUNNING), sessionId);
-                                jobStatus = Job.RUNNING;
-                            }
-                            break;
-                        case SgeExecutionManager.TRANSFERRED:
-                            break;
-                        case SgeExecutionManager.UNKNOWN:
-                            break;
-                    }
-                    if (!attributes.isEmpty()) {
-                        catalogManager.modifyJob(job.getId(), new ObjectMap("resourceManagerAttributes", attributes), sessionId);
+                    String jobStatus = job.getStatus();
+                    if(job.getExecutionAttributes().containsKey(Job.JOB_EXECUTION_ID)) {
+                        ExecutionJobStatus executionJobStatus = ExecutionManagerFactory.getFactory()
+                                .getExecutionManager(job.getExecutionAttributes().get(Job.EXECUTION_MANAGER).toString())
+                                .status(job.getExecutionAttributes().get(Job.JOB_EXECUTION_ID).toString());
+//                    String type = job.getExecutionAttributes().get(Job.TYPE).toString();
+                        logger.info("job : {id: " + job.getId() + ", status: '" + job.getStatus() + "', name: '" +
+                                job.getName() + "'}, executionStatus : " + executionJobStatus.getStatus());
+
+                        //Track ExecutionManager
+                        switch (executionJobStatus.getStatus()) {
+                            case ExecutionJobStatus.FINISHED:
+                                if (!Job.DONE.equals(job.getStatus())) {
+                                    catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.DONE), sessionId);
+                                    jobStatus = Job.DONE;
+                                }
+                                break;
+                            case ExecutionJobStatus.ERROR:
+                            case ExecutionJobStatus.QUEUE_ERROR:
+                            case ExecutionJobStatus.EXECUTION_ERROR:
+                                if (!Job.ERROR.equals(job.getStatus())) {
+                                    catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.ERROR), sessionId);
+                                    jobStatus = Job.ERROR;
+                                }
+                                break;
+                            case ExecutionJobStatus.QUEUED:
+                                if (!Job.QUEUED.equals(job.getStatus())) {
+                                    catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.QUEUED), sessionId);
+                                    jobStatus = Job.QUEUED;
+                                }
+                                break;
+                            case ExecutionJobStatus.RUNNING:
+                                if (!Job.RUNNING.equals(job.getStatus())) {
+                                    catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.RUNNING), sessionId);
+                                    jobStatus = Job.RUNNING;
+                                }
+                                break;
+                            case ExecutionJobStatus.TRANSFERRED:
+                                break;
+                            case ExecutionJobStatus.UNKNOWN:
+                                break;
+                        }
+                        if (!executionJobStatus.getAttributes().isEmpty()) {
+                            catalogManager.modifyJob(job.getId(),
+                                    new ObjectMap("executionAttributes", executionJobStatus.getAttributes()),
+                                    sessionId);
+                        }
                     }
 
                     //Track Catalog Job status
@@ -165,8 +171,14 @@ public class DaemonLoop implements Runnable {
                             }
                             break;
                         case Job.PREPARED:
-                            AnalysisJobExecuter.execute(job);
-                            catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.QUEUED), sessionId);
+                            String jobExecutorId = AnalysisJobExecuter.execute(job);
+                            ObjectMap parameters = new ObjectMap();
+                            parameters.put("status", Job.QUEUED);
+                            ObjectMap executionAttributes = new ObjectMap();
+                            executionAttributes.put(Job.JOB_EXECUTION_ID, jobExecutorId);
+                            executionAttributes.put(Job.EXECUTION_MANAGER, AnalysisJobExecuter.getAnalysisExecutionManagerName());
+                            parameters.put("executionAttributes", executionAttributes);
+                            catalogManager.modifyJob(job.getId(), parameters, sessionId);
                             break;
                         case Job.QUEUED:
                             break;

@@ -8,14 +8,11 @@ import org.opencb.opencga.catalog.beans.Job;
 import org.opencb.opencga.catalog.db.CatalogManagerException;
 import org.opencb.opencga.catalog.io.CatalogIOManagerException;
 import org.opencb.opencga.lib.execution.ExecutionManagerFactory;
-import org.opencb.opencga.lib.execution.SgeExecutionManager;
 import org.opencb.opencga.lib.common.Config;
 import org.opencb.opencga.analysis.beans.Analysis;
 import org.opencb.opencga.analysis.beans.Execution;
 import org.opencb.opencga.analysis.beans.Option;
 import org.opencb.opencga.lib.common.StringUtils;
-import org.opencb.opencga.lib.exec.Command;
-import org.opencb.opencga.lib.exec.SingleProcess;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +26,7 @@ import java.util.*;
 
 public class AnalysisJobExecuter {
 
+    public static final String ANALYSIS_JOB_EXECUTOR = "OPENCGA.ANALYSIS.JOB.EXECUTOR";
     protected static Logger logger = LoggerFactory.getLogger(AnalysisJobExecuter.class);
     protected final Properties analysisProperties;
     protected final String home;
@@ -93,17 +91,18 @@ public class AnalysisJobExecuter {
         execution = getExecution();
     }
 
-    public void execute(String jobName, int jobId, String jobFolder, String commandLine) throws AnalysisExecutionException, IOException {
+    @Deprecated
+    public String execute(String jobName, int jobId, String jobFolder, String commandLine) throws AnalysisExecutionException, IOException {
         logger.debug("AnalysisJobExecuter: execute, 'jobName': " + jobName + ", 'jobFolder': " + jobFolder);
         logger.debug("AnalysisJobExecuter: execute, command line: " + commandLine);
 
-        executeCommandLine(commandLine, jobName, jobId, jobFolder, analysisName);
+        return executeCommandLine(commandLine, jobName, jobId, jobFolder, analysisName);
     }
 
-    public static void execute(Job job) throws AnalysisExecutionException, IOException {
+    public static String execute(Job job) throws AnalysisExecutionException, IOException {
         logger.debug("AnalysisJobExecuter: execute, job: {}", job);
 
-        executeCommandLine(job.getCommandLine(), job.getResourceManagerAttributes().get(Job.JOB_SCHEDULER_NAME).toString(),
+        return executeCommandLine(job.getCommandLine(), job.getName(),
                 job.getId(), job.getTmpOutDirUri().getPath(), job.getToolName());
     }
 
@@ -200,7 +199,7 @@ public class AnalysisJobExecuter {
 
         // Create job in CatalogManager
         Map<String, Object> resourceManagerAttributes = new HashMap<>();
-        resourceManagerAttributes.put(Job.JOB_SCHEDULER_NAME, randomString);
+//        resourceManagerAttributes.put(Job.JOB_SCHEDULER_NAME, randomString);
 
         QueryResult<Job> jobQueryResult = catalogManager.createJob(studyId, jobName, analysisName, description, commandLine, temporalOutDirUri,
                 outDir.getId(), inputFiles, resourceManagerAttributes, sessionId);
@@ -208,31 +207,37 @@ public class AnalysisJobExecuter {
     }
 
 
-    private static void executeCommandLine(String commandLine, String jobName, int jobId, String jobFolder, String analysisName)
+    private static String executeCommandLine(String commandLine, String jobName, int jobId, String jobFolder, String analysisName)
             throws AnalysisExecutionException, IOException {
         // read execution param
-        String jobExecutor = Config.getAnalysisProperties().getProperty("OPENCGA.ANALYSIS.JOB.EXECUTOR");
+        String jobExecutor = getAnalysisExecutionManagerName();
+        String jobExecutorId;
 
-        // local execution
-        if (jobExecutor == null || jobExecutor.trim().equalsIgnoreCase("LOCAL")) {
-            logger.debug("AnalysisJobExecuter: execute, running by SingleProcess");
-
-            Command com = new Command(commandLine);
-            SingleProcess sp = new SingleProcess(com);
-            sp.getRunnableProcess().run();
-        }
-        // sge execution
-        else {
-            logger.debug("AnalysisJobExecuter: execute, running by SgeManager");
+//        // local execution
+//        if (jobExecutor == null || jobExecutor.trim().equalsIgnoreCase("LOCAL")) {
+//            logger.debug("AnalysisJobExecuter: execute, running by SingleProcess");
+//
+//            Command com = new Command(commandLine);
+//            SingleProcess sp = new SingleProcess(com);
+//            sp.getRunnableProcess().run();
+//        }
+//        // sge execution
+//        else {
+            logger.debug("AnalysisJobExecuter: execute, running by ExecutionManager {}", jobExecutor);
 
             try {
-                String jobExecutorId = ExecutionManagerFactory.getFactory().getExecutionManager().
+                jobExecutorId = ExecutionManagerFactory.getFactory().getExecutionManager(jobExecutor).
                         queueJob(analysisName, jobName, "", jobFolder, commandLine, null, "job." + jobId);
             } catch (Exception e) {
                 logger.error(e.toString());
-                throw new AnalysisExecutionException("ERROR: sge execution failed.");
+                throw new AnalysisExecutionException("ERROR: sge execution failed. ", e);
             }
-        }
+//        }
+        return jobExecutorId;
+    }
+
+    public static String getAnalysisExecutionManagerName() {
+        return Config.getAnalysisProperties().getProperty(ANALYSIS_JOB_EXECUTOR);
     }
 
     public Analysis getAnalysis() throws IOException, AnalysisExecutionException {

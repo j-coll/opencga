@@ -2059,10 +2059,13 @@ public class CatalogMongoDBAdaptor implements CatalogDBAdaptor {
             }
         }
 
-        String[] acceptedMapParams = {"attributes", "resourceManagerAttributes"};
+        String[] acceptedMapParams = {"attributes", "executionAttributes"};
         for (String s : acceptedMapParams) {
             if(parameters.containsKey(s)) {
-                jobParameters.put(s, parameters.getMap(s));
+                Map<String, Object> map = parameters.getMap(s);
+                for (Map.Entry<String, Object> entry : map.entrySet()) {    //Merge 1st level values
+                    jobParameters.put(s + "." + entry.getKey(), entry.getValue());
+                }
             }
         }
 

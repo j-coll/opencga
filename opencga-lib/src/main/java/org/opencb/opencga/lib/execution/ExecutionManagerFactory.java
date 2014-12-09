@@ -40,7 +40,10 @@ public class ExecutionManagerFactory {
     }
 
     public ExecutionManager getExecutionManager(String name) {
-
+        if(name == null || name.isEmpty()) {
+            name = getDefaultManager();
+        }
+        name = name.toLowerCase();
         if(!managerMap.containsKey(name)) {
             if (!isAvailableManager(name)) {
                 throw new UnsupportedOperationException("Unsupported ExecutionManager " + name);    //TODO: Custom exception?

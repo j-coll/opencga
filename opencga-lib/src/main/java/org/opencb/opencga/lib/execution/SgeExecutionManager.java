@@ -1,8 +1,5 @@
 package org.opencb.opencga.lib.execution;
 
-import org.opencb.datastore.core.ObjectMap;
-import org.opencb.opencga.lib.exec.Command;
-import org.opencb.opencga.lib.exec.SingleProcess;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -25,10 +22,10 @@ public class SgeExecutionManager extends ExecutionManager {
     private static final Map<String, String> stateDic;
     static {
         stateDic = new HashMap<>();
-        stateDic.put("r", RUNNING);
-        stateDic.put("t", TRANSFERRED);
-        stateDic.put("qw", QUEUED);
-        stateDic.put("Eqw", ERROR);
+        stateDic.put("r", ExecutionJobStatus.RUNNING);
+        stateDic.put("t", ExecutionJobStatus.TRANSFERRED);
+        stateDic.put("qw", ExecutionJobStatus.QUEUED);
+        stateDic.put("Eqw", ExecutionJobStatus.ERROR);
     }
 
     SgeExecutionManager() {
@@ -96,7 +93,7 @@ public class SgeExecutionManager extends ExecutionManager {
 
 
     private static String getSgeJobName(String toolName, String jobName) {
-        return toolName.replace(" ", "_") + "_" + jobName;
+        return toolName.replace(" ", "_") + "_" + jobName.replace(" ", "_");
     }
 
     /**
@@ -104,14 +101,11 @@ public class SgeExecutionManager extends ExecutionManager {
      * @param jobExecutionId    Integer identifier
      */
     @Override
-    public String status(String jobExecutionId, ObjectMap attributes) throws Exception {
-        if(attributes == null) {
-            attributes = new ObjectMap();
-        }
+    public ExecutionJobStatus status(String jobExecutionId) throws Exception {
+        ExecutionJobStatus executionJobStatus = new ExecutionJobStatus();
+        executionJobStatus.setStatus(getQstat(jobExecutionId));
 
-        String status = getQstat(jobExecutionId);
-
-        if (status.equals(UNKNOWN)) {
+        if (executionJobStatus.getStatus().equals(ExecutionJobStatus.UNKNOWN)) {
             String command = "qacct -j " + jobExecutionId;
             String out = executeCommand(command);
             for (String line : out.split("\n")) {
@@ -119,25 +113,24 @@ public class SgeExecutionManager extends ExecutionManager {
                 if(split.length != 2) {
                     continue;
                 }
-                attributes.put(split[0].trim(), split[1].trim());
+                executionJobStatus.getAttributes().put(split[0].trim(), split[1].trim());
             }
-            if (attributes.containsKey("exit_status") && attributes.containsKey("failed")) {
-                if (!attributes.getString("failed", "").equals("0")) {
-                    status = "queue error";
-                }
-                if (attributes.getString("exit_status", "").equals("0")) {
-                    status = FINISHED;
+            if (executionJobStatus.getAttributes().containsKey("exit_status") && executionJobStatus.getAttributes().containsKey("failed")) {
+                if (!executionJobStatus.getAttributes().getString("failed", "").equals("0")) {
+                    executionJobStatus.setStatus(ExecutionJobStatus.QUEUE_ERROR);
+                } else if (executionJobStatus.getAttributes().getString("exit_status", "").equals("0")) {
+                    executionJobStatus.setStatus(ExecutionJobStatus.FINISHED);
                 } else {
-                    status = EXECUTION_ERROR;
+                    executionJobStatus.setStatus(ExecutionJobStatus.EXECUTION_ERROR);
                 }
             }
         }
-        return status;
+        return executionJobStatus;
     }
 
     protected String getQstat(String jobExecutionId) throws Exception {
         String xml = null;
-        String status = UNKNOWN;
+        String status = ExecutionJobStatus.UNKNOWN;
         try {
             xml = executeCommand("qstat -xml");
         } catch (IOException e) {
