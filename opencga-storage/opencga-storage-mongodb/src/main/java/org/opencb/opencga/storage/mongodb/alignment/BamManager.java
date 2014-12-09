@@ -11,7 +11,7 @@ import com.mongodb.BasicDBObject;
 import net.sf.samtools.*;
 import net.sf.samtools.SAMRecord.SAMTagAndValue;
 import org.opencb.biodata.models.feature.Region;
-import org.opencb.opencga.lib.SgeManager;
+import org.opencb.opencga.lib.execution.SgeExecutionManager;
 import org.opencb.opencga.lib.common.Config;
 import org.opencb.opencga.lib.common.IOUtils;
 import org.opencb.opencga.lib.common.StringUtils;
@@ -78,7 +78,7 @@ public class BamManager {
         String jobId = StringUtils.randomString(8);
         String commandLine = indexerManagerScript + " -t bam -i " + inputBamPath + " --outdir " + metaDir;
         try {
-            SgeManager.queueJob("indexer", jobId, 0, inputBamPath.getParent().toString(), commandLine);
+            SgeExecutionManager.getSgeExecutionManager().queueJob("indexer", jobId, null, inputBamPath.getParent().toString(), commandLine, null, null);
         } catch (Exception e) {
             logger.error(e.toString());
 //            throw new AnalysisExecutionException("ERROR: sge execution failed.");

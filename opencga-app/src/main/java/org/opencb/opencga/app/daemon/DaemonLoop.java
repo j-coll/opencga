@@ -17,7 +17,8 @@ import org.opencb.opencga.catalog.beans.Study;
 import org.opencb.opencga.catalog.db.CatalogManagerException;
 import org.opencb.opencga.catalog.io.CatalogIOManager;
 import org.opencb.opencga.catalog.io.CatalogIOManagerException;
-import org.opencb.opencga.lib.SgeManager;
+import org.opencb.opencga.lib.execution.ExecutionManagerFactory;
+import org.opencb.opencga.lib.execution.SgeExecutionManager;
 import org.opencb.opencga.lib.common.Config;
 import org.opencb.opencga.lib.common.TimeUtils;
 import org.slf4j.LoggerFactory;
@@ -102,7 +103,9 @@ public class DaemonLoop implements Runnable {
             try {
                 QueryResult<Job> unfinishedJobs = catalogManager.getUnfinishedJobs(sessionId);
                 for (Job job : unfinishedJobs.getResult()) {
-                    String status = SgeManager.status(job.getResourceManagerAttributes().get(Job.JOB_SCHEDULER_NAME).toString());
+                    ObjectMap attributes = new ObjectMap();
+                    String status = ExecutionManagerFactory.getFactory().getExecutionManager(ExecutionManagerFactory.SGE)
+                            .status(job.getResourceManagerAttributes().get(Job.JOB_SCHEDULER_NAME).toString(), attributes);
                     String jobStatus = job.getStatus();
 //                    String type = job.getResourceManagerAttributes().get(Job.TYPE).toString();
 //                    System.out.println("job : {id: " + job.getId() + ", status: '" + job.getStatus() + "', name: '" + job.getName() + "'}, sgeStatus : " + status);
@@ -110,35 +113,38 @@ public class DaemonLoop implements Runnable {
 
                     //Track SGEManager
                     switch(status) {
-                        case SgeManager.FINISHED:
+                        case SgeExecutionManager.FINISHED:
                             if(!Job.DONE.equals(job.getStatus())) {
                                 catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.DONE), sessionId);
                                 jobStatus = Job.DONE;
                             }
                             break;
-                        case SgeManager.ERROR:
-                        case SgeManager.EXECUTION_ERROR:
+                        case SgeExecutionManager.ERROR:
+                        case SgeExecutionManager.EXECUTION_ERROR:
                             if(!Job.ERROR.equals(job.getStatus())) {
                                 catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.ERROR), sessionId);
                                 jobStatus = Job.ERROR;
                             }
                             break;
-                        case SgeManager.QUEUED:
+                        case SgeExecutionManager.QUEUED:
                             if(!Job.QUEUED.equals(job.getStatus())) {
                                 catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.QUEUED), sessionId);
                                 jobStatus = Job.QUEUED;
                             }
                             break;
-                        case SgeManager.RUNNING:
+                        case SgeExecutionManager.RUNNING:
                             if(!Job.RUNNING.equals(job.getStatus())) {
                                 catalogManager.modifyJob(job.getId(), new ObjectMap("status", Job.RUNNING), sessionId);
                                 jobStatus = Job.RUNNING;
                             }
                             break;
-                        case SgeManager.TRANSFERRED:
+                        case SgeExecutionManager.TRANSFERRED:
                             break;
-                        case SgeManager.UNKNOWN:
+                        case SgeExecutionManager.UNKNOWN:
                             break;
+                    }
+                    if (!attributes.isEmpty()) {
+                        catalogManager.modifyJob(job.getId(), new ObjectMap("resourceManagerAttributes", attributes), sessionId);
                     }
 
                     //Track Catalog Job status

@@ -2048,10 +2048,7 @@ public class CatalogMongoDBAdaptor implements CatalogDBAdaptor {
         String[] acceptedLongParams = {"startTime", "endTime", "diskUsage"};
         for (String s : acceptedLongParams) {
             if(parameters.containsKey(s)) {
-                Object value = parameters.get(s);    //TODO: Add "getLong" to "ObjectMap"
-                if(value instanceof Long) {
-                    jobParameters.put(s, value);
-                }
+                jobParameters.put(s, parameters.getLong(s));
             }
         }
 
@@ -2059,6 +2056,13 @@ public class CatalogMongoDBAdaptor implements CatalogDBAdaptor {
         for (String s : acceptedListParams) {
             if(parameters.containsKey(s)) {
                 jobParameters.put(s, parameters.getListAs(s, Integer.class));
+            }
+        }
+
+        String[] acceptedMapParams = {"attributes", "resourceManagerAttributes"};
+        for (String s : acceptedMapParams) {
+            if(parameters.containsKey(s)) {
+                jobParameters.put(s, parameters.getMap(s));
             }
         }
 

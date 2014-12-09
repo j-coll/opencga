@@ -7,7 +7,8 @@ import org.opencb.opencga.catalog.beans.File;
 import org.opencb.opencga.catalog.beans.Job;
 import org.opencb.opencga.catalog.db.CatalogManagerException;
 import org.opencb.opencga.catalog.io.CatalogIOManagerException;
-import org.opencb.opencga.lib.SgeManager;
+import org.opencb.opencga.lib.execution.ExecutionManagerFactory;
+import org.opencb.opencga.lib.execution.SgeExecutionManager;
 import org.opencb.opencga.lib.common.Config;
 import org.opencb.opencga.analysis.beans.Analysis;
 import org.opencb.opencga.analysis.beans.Execution;
@@ -225,7 +226,8 @@ public class AnalysisJobExecuter {
             logger.debug("AnalysisJobExecuter: execute, running by SgeManager");
 
             try {
-                SgeManager.queueJob(analysisName, jobName, -1, jobFolder, commandLine, null, "job." + jobId);
+                String jobExecutorId = ExecutionManagerFactory.getFactory().getExecutionManager().
+                        queueJob(analysisName, jobName, "", jobFolder, commandLine, null, "job." + jobId);
             } catch (Exception e) {
                 logger.error(e.toString());
                 throw new AnalysisExecutionException("ERROR: sge execution failed.");

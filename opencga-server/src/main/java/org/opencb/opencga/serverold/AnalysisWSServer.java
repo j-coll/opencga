@@ -11,9 +11,8 @@ import org.opencb.opencga.analysis.AnalysisJobExecuter;
 import org.opencb.opencga.analysis.beans.Analysis;
 import org.opencb.opencga.analysis.beans.Execution;
 import org.opencb.opencga.analysis.beans.InputParam;
-import org.opencb.opencga.lib.SgeManager;
+import org.opencb.opencga.lib.execution.SgeExecutionManager;
 import org.opencb.opencga.lib.common.StringUtils;
-import org.opencb.opencga.server.OpenCGAWSServer;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.*;
@@ -114,7 +113,7 @@ public class AnalysisWSServer extends GenericWSServer {
             return createErrorResponse(analysisErrorMsg);
         }
         try {
-            return createOkResponse(SgeManager.status(analysis + "_" + jobId));
+            return createOkResponse(SgeExecutionManager.status(analysis + "_" + jobId));
         } catch (Exception e) {
             logger.error(e.toString());
             return createErrorResponse("job id not found.");

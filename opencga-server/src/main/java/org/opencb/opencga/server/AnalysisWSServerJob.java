@@ -1,7 +1,7 @@
 package org.opencb.opencga.server;
 
 import org.opencb.opencga.analysis.AnalysisJobExecuter;
-import org.opencb.opencga.lib.SgeManager;
+import org.opencb.opencga.lib.execution.SgeExecutionManager;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.*;
@@ -89,20 +89,20 @@ public class AnalysisWSServerJob extends OpenCGAWSServer {
 //        }
 //    }
 
-    @GET
-    @Path("/status")
-    public Response status(@DefaultValue("") @QueryParam("jobid") String jobId) throws Exception {
-        if (analysisError) {
-            return createErrorResponse(analysisErrorMsg);
-        }
-        try {
-            return createOkResponse(SgeManager.status(analysis + "_" + jobId));
-        } catch (Exception e) {
-            logger.error(e.toString());
-            return createErrorResponse("job id not found.");
-        }
-
-    }
+//    @GET
+//    @Path("/status")
+//    public Response status(@DefaultValue("") @QueryParam("jobid") String jobId) throws Exception {
+//        if (analysisError) {
+//            return createErrorResponse(analysisErrorMsg);
+//        }
+//        try {
+//            return createOkResponse(SgeExecutionManager.status(analysis + "_" + jobId));
+//        } catch (Exception e) {
+//            logger.error(e.toString());
+//            return createErrorResponse("job id not found.");
+//        }
+//
+//    }
 
 //    @GET
 //    @Path("/{analysis}")

@@ -13,7 +13,6 @@ import org.opencb.opencga.analysis.AnalysisFileIndexer;
 import org.opencb.opencga.catalog.beans.File;
 import org.opencb.opencga.catalog.db.CatalogManagerException;
 import org.opencb.opencga.catalog.io.CatalogIOManagerException;
-import org.opencb.opencga.lib.SgeManager;
 import org.opencb.opencga.lib.common.IOUtils;
 import org.opencb.opencga.storage.core.StorageManagerFactory;
 import org.opencb.opencga.storage.core.alignment.AlignmentStorageManager;
