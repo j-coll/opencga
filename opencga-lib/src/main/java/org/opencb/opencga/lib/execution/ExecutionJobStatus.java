@@ -14,6 +14,7 @@ public class ExecutionJobStatus {
     public static final String FINISHED = "finished";
     public static final String EXECUTION_ERROR = "execution error";
     public static final String QUEUE_ERROR = "queueError";
+    public static final String CANCELED = "CANCELED";
 
     private String status;
     private ObjectMap attributes;

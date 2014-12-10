@@ -172,13 +172,19 @@ public class DaemonLoop implements Runnable {
                             break;
                         case Job.PREPARED:
                             String jobExecutorId = AnalysisJobExecuter.execute(job);
-                            ObjectMap parameters = new ObjectMap();
-                            parameters.put("status", Job.QUEUED);
-                            ObjectMap executionAttributes = new ObjectMap();
-                            executionAttributes.put(Job.JOB_EXECUTION_ID, jobExecutorId);
-                            executionAttributes.put(Job.EXECUTION_MANAGER, AnalysisJobExecuter.getAnalysisExecutionManagerName());
-                            parameters.put("executionAttributes", executionAttributes);
-                            catalogManager.modifyJob(job.getId(), parameters, sessionId);
+                            if(jobExecutorId != null && !jobExecutorId.isEmpty()) {
+                                ObjectMap parameters = new ObjectMap();
+                                parameters.put("status", Job.QUEUED);
+                                ObjectMap executionAttributes = new ObjectMap();
+                                executionAttributes.put(Job.JOB_EXECUTION_ID, jobExecutorId);
+                                executionAttributes.put(Job.EXECUTION_MANAGER, AnalysisJobExecuter.getAnalysisExecutionManagerName());
+                                System.out.println("executionAttributes = " + executionAttributes.toJson());
+
+                                parameters.put("executionAttributes", executionAttributes);
+                                catalogManager.modifyJob(job.getId(), parameters, sessionId);
+                            } else {
+                                logger.error("Fail to submit job to {}! {} ", AnalysisJobExecuter.getAnalysisExecutionManagerName(), job);
+                            }
                             break;
                         case Job.QUEUED:
                             break;

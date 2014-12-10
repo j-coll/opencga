@@ -56,6 +56,7 @@ public class ExecutionManagerFactory {
                     managerMap.put(name, new LocalThreadExecutionManager());
                     break;
                 case SLURM:
+                    managerMap.put(name, new SlurmExecutionManager());
                     break;
                 case LSF:
                     break;

@@ -86,7 +86,6 @@ public class JobWSServer extends OpenCGAWSServer {
             @ApiParam(value = "execution", required = false)    @DefaultValue("")   @QueryParam("execution") String execution,
             @ApiParam(value = "description", required = false)  @DefaultValue("")   @QueryParam("description") String description
     ) {
-        QueryResult<Job> jobResult;
         try {
             AnalysisJobExecuter analysisJobExecuter;
             String toolName;
@@ -124,14 +123,6 @@ public class JobWSServer extends OpenCGAWSServer {
                 }
             }
 
-            // Creating job name. Random string to avoid collisions.
-//            String jobName = name.isEmpty()? "J_" + String.format(StringUtils.randomString(15)) : name;
-
-            // Get temporal outdir  TODO: Create job folder outside the user workspace.
-//            java.nio.file.Path temporalOutdirPath = Paths.get("jobs", jobName);
-////            int studyId = catalogManager.getStudyIdByAnalysisId(studyId);
-//            File temporalOutDir = catalogManager.createFolder(studyId, temporalOutdirPath, true, sessionId).getResult().get(0);
-
             // Set outdir
             String outputParam = analysisJobExecuter.getExecution().getOutputParam();
             if (params.get(outputParam).isEmpty()) {
@@ -139,23 +130,6 @@ public class JobWSServer extends OpenCGAWSServer {
             }
             int outDirId = catalogManager.getFileId(params.get(outputParam).get(0));
             File outDir = catalogManager.getFile(outDirId, sessionId).getResult().get(0);
-
-            // Create temporal Outdir
-//            String randomString = StringUtils.randomString(10);
-//            URI temporalOutDirUri = catalogManager.createJobOutDir(studyId, randomString, sessionId);
-//            localParams.put(outputParam, Arrays.asList(temporalOutDirUri.getPath()));
-//
-//            // Create commandLine
-//            String commandLine = analysisJobExecuter.createCommandLine(localParams);
-//            System.out.println(commandLine);
-//
-//            // Create job in CatalogManager
-//            Map<String, Object> resourceManagerAttributes = new HashMap<>();
-//            resourceManagerAttributes.put(Job.JOB_SCHEDULER_NAME, randomString);
-//
-//            jobResult = catalogManager.createJob(studyId, jobName, toolName, description, commandLine, temporalOutDirUri,
-//                    outDir.getId(), inputFiles, resourceManagerAttributes, sessionId);
-//            Job job = jobResult.getResult().get(0);
 
             QueryResult<Job> jobQueryResult = analysisJobExecuter.createJob(
                     localParams, catalogManager, studyId, name, description, outDir, inputFiles, sessionId);

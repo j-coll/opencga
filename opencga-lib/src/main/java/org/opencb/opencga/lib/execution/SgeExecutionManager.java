@@ -173,22 +173,5 @@ public class SgeExecutionManager extends ExecutionManager {
         return status;
     }
 
-    protected String executeCommand(String commandLine) throws IOException {
-        String stringResult;
-        Process p = Runtime.getRuntime().exec(commandLine);
-        StringBuilder stdOut = new StringBuilder();
-        BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
-
-        String aux = br.readLine();
-        if(aux != null) {
-            stdOut.append(aux);
-        }
-        while ((aux = br.readLine()) != null) {
-            stdOut.append("\n").append(aux);
-        }
-        stringResult = stdOut.toString();
-        br.close();
-        return stringResult;
-    }
 
 }

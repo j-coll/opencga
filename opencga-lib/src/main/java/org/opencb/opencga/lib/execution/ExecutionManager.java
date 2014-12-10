@@ -4,6 +4,9 @@ import org.opencb.opencga.lib.common.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.*;
 
@@ -108,6 +111,27 @@ public abstract class ExecutionManager {
     protected static List<String> getQueueTools(String queueName) {
         String queueProperty = QUEUE_NAME + queueName.toUpperCase() + ".TOOLS";
         return Arrays.asList(analysisProperties.getProperty(queueProperty, "").split(","));
+    }
+
+
+    protected String executeCommand(String commandLine) throws IOException {
+        String stringResult;
+        Process p = Runtime.getRuntime().exec(commandLine);
+        StringBuilder stdOut = new StringBuilder();
+        BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+
+        logger.info("Executing: {} ", commandLine);
+
+        String aux = br.readLine();
+        if(aux != null) {
+            stdOut.append(aux);
+        }
+        while ((aux = br.readLine()) != null) {
+            stdOut.append("\n").append(aux);
+        }
+        stringResult = stdOut.toString();
+        br.close();
+        return stringResult;
     }
 
 

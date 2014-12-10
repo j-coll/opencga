@@ -230,7 +230,7 @@ public class AnalysisJobExecuter {
                         queueJob(analysisName, jobName, "", jobFolder, commandLine, null, "job." + jobId);
             } catch (Exception e) {
                 logger.error(e.toString());
-                throw new AnalysisExecutionException("ERROR: sge execution failed. ", e);
+                throw new AnalysisExecutionException("ERROR: ExeecutionManager '" + jobExecutor + "' failed. ", e);
             }
 //        }
         return jobExecutorId;
