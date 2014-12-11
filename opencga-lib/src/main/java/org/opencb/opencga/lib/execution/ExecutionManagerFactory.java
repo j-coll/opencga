@@ -53,7 +53,7 @@ public class ExecutionManagerFactory {
                     managerMap.put(name, new SgeExecutionManager());
                     break;
                 case LOCAL:
-                    managerMap.put(name, new LocalThreadExecutionManager());
+                    //managerMap.put(name, new LocalThreadExecutionManager());
                     break;
                 case SLURM:
                     managerMap.put(name, new SlurmExecutionManager());
