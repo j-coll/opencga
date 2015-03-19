@@ -32,20 +32,39 @@ public class DBObjectToSamplesConverter implements ComplexTypeConverter<VariantS
     private Map<String, Integer> sampleIds;
     private Map<Integer, String> idSamples;
     private VariantSourceDBAdaptor sourceDbAdaptor;
-    private boolean compressDefaultGenotype;
+//    private boolean compressDefaultGenotype;
+    private Genotype defaultGenotype;
+//    private List<Genotype> genotypes;
 
     public static final org.slf4j.Logger logger = LoggerFactory.getLogger(DBObjectToSamplesConverter.class.getName());
 
     /**
      * Create a converter from a Map of samples to DBObject entities.
-     * 
-     * @param compressDefaultGenotype Whether to compress samples default genotype or not
      */
-    public DBObjectToSamplesConverter(boolean compressDefaultGenotype) {
+    public DBObjectToSamplesConverter() {
         this.idSamples = null;
         this.sampleIds = null;
         this.sourceDbAdaptor = null;
-        this.compressDefaultGenotype = compressDefaultGenotype;
+//        this.compressDefaultGenotype = false;
+        this.defaultGenotype = null;
+//        genotypes = new ArrayList<>();
+//        genotypes.add(new Genotype("./."));
+//        genotypes.add(new Genotype("0/1"));
+//        genotypes.add(new Genotype("1/1"));
+//        genotypes.add(new Genotype("0/0"));
+    }
+
+    /**
+     * Create a converter from a Map of samples to DBObject entities.
+     *
+     * @param defaultGenotype Default genotype with which compress samples default genotype. If null, do not compress.
+     */
+    public DBObjectToSamplesConverter(String defaultGenotype) {
+        this();
+//        this.compressDefaultGenotype = defaultGenotype == null || defaultGenotype.isEmpty();
+        if (defaultGenotype != null && !defaultGenotype.isEmpty()) {
+            this.defaultGenotype = new Genotype(defaultGenotype);
+        }
     }
 
     /**
@@ -54,8 +73,9 @@ public class DBObjectToSamplesConverter implements ComplexTypeConverter<VariantS
      * 
      * @param samples The list of samples, if any
      */
-    public DBObjectToSamplesConverter(List<String> samples) {
-        this(true);
+     @Deprecated
+     public DBObjectToSamplesConverter(List<String> samples) {
+        this();
         setSamples(samples);
     }
 
@@ -65,8 +85,8 @@ public class DBObjectToSamplesConverter implements ComplexTypeConverter<VariantS
      *
      * @param sampleIds Map of samples to sampleId
      */
-    public DBObjectToSamplesConverter(boolean compressDefaultGenotype, Map<String, Integer> sampleIds) {
-        this(compressDefaultGenotype);
+    public DBObjectToSamplesConverter(String defaultGenotype, Map<String, Integer> sampleIds) {
+        this(defaultGenotype);
         setSampleIds(sampleIds);
     }
 
@@ -78,7 +98,7 @@ public class DBObjectToSamplesConverter implements ComplexTypeConverter<VariantS
      * @param collectionName Collection that stores the variant sources
      */
     public DBObjectToSamplesConverter(MongoCredentials credentials, String collectionName) {
-        this(true);
+        this();
         try {
             this.sourceDbAdaptor = new VariantSourceMongoDBAdaptor(credentials, collectionName);
         } catch (UnknownHostException ex) {
@@ -93,7 +113,7 @@ public class DBObjectToSamplesConverter implements ComplexTypeConverter<VariantS
      * @param variantSourceDBAdaptor  VariantSourceDBAdaptor where the samples are stored.
      */
     public DBObjectToSamplesConverter(VariantSourceDBAdaptor variantSourceDBAdaptor) {
-        this(true);
+        this((String) null);
         this.sourceDbAdaptor = variantSourceDBAdaptor;
     }
 
@@ -179,31 +199,36 @@ public class DBObjectToSamplesConverter implements ComplexTypeConverter<VariantS
     @Override
     public DBObject convertToStorageType(VariantSourceEntry object) {
         Map<Genotype, List<Integer>> genotypeCodes = new HashMap<>();
+//        for (Genotype genotype : genotypes) {
+//            genotypeCodes.put(genotype, new LinkedList<Integer>());
+//        }
 
         // Classify samples by genotype
         for (Map.Entry<String, Map<String, String>> sample : object.getSamplesData().entrySet()) {
             String genotype = sample.getValue().get("GT");
             if (genotype != null) {
                 Genotype g = new Genotype(genotype);
-                List<Integer> samplesWithGenotype = genotypeCodes.get(g);
-                if (samplesWithGenotype == null) {
-                    samplesWithGenotype = new ArrayList<>();
-                    genotypeCodes.put(g, samplesWithGenotype);
+                if (!g.equals(defaultGenotype)) { //Do not save the default genotype
+                    List<Integer> samplesWithGenotype = genotypeCodes.get(g);
+                    if (samplesWithGenotype == null) {
+                        samplesWithGenotype = new ArrayList<>();
+                        genotypeCodes.put(g, samplesWithGenotype);
+                    }
+                    samplesWithGenotype.add(sampleIds.get(sample.getKey()));
                 }
-                samplesWithGenotype.add(sampleIds.get(sample.getKey()));
             }
         }
 
-        // Get the most common genotype
-        Map.Entry<Genotype, List<Integer>> longestList = null;
-        if (compressDefaultGenotype) {
-            for (Map.Entry<Genotype, List<Integer>> entry : genotypeCodes.entrySet()) {
-                List<Integer> genotypeList = entry.getValue();
-                if (longestList == null || genotypeList.size() > longestList.getValue().size()) {
-                    longestList = entry;
-                }
-            }
-        }
+//        Get the most common genotype
+//        Map.Entry<Genotype, List<Integer>> longestList = null;
+//        if (compressDefaultGenotype) {
+//            for (Map.Entry<Genotype, List<Integer>> entry : genotypeCodes.entrySet()) {
+//                List<Integer> genotypeList = entry.getValue();
+//                if (longestList == null || genotypeList.size() > longestList.getValue().size()) {
+//                    longestList = entry;
+//                }
+//            }
+//        }
 
         // In Mongo, samples are stored in a map, classified by their genotype.
         // The most common genotype will be marked as "default" and the specific
@@ -214,8 +239,9 @@ public class DBObjectToSamplesConverter implements ComplexTypeConverter<VariantS
         BasicDBObject mongoSamples = new BasicDBObject();
         for (Map.Entry<Genotype, List<Integer>> entry : genotypeCodes.entrySet()) {
             String genotypeStr = entry.getKey().toString().replace(".", "-1");
-            if (longestList != null && entry.getKey().equals(longestList.getKey())) {
-                mongoSamples.append("def", genotypeStr);
+//            if (longestList != null && entry.getKey().equals(longestList.getKey())) {
+            if (entry.getKey().equals(defaultGenotype)) {
+//                mongoSamples.append("def", genotypeStr);
             } else {
                 mongoSamples.append(genotypeStr, entry.getValue());
             }
@@ -247,6 +273,10 @@ public class DBObjectToSamplesConverter implements ComplexTypeConverter<VariantS
         }
         assert sampleIds.size() == idSamples.size();
     }
+
+//    public void setGenotypes(List<Genotype> genotypes) {
+//        this.genotypes = genotypes;
+//    }
 
     private VariantSourceEntry getLegacyNoncompressedSamples(BasicDBObject object) {
         VariantSourceEntry variantSourceEntry = new VariantSourceEntry(object.get(FILEID_FIELD).toString(),

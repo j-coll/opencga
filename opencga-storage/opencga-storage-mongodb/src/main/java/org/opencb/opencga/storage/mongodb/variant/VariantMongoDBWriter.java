@@ -216,12 +216,23 @@ public class VariantMongoDBWriter extends VariantDBWriter {
                 if (!variantSourceEntry.getFileId().equals(fileId)) {
                     continue;
                 }
+                DBObject samples = sampleConverter.convertToStorageType(variantSourceEntry);
                 BasicDBObject update = new BasicDBObject()
-                        .append("$push",
-                                new BasicDBObject(
-                                        DBObjectToVariantConverter.FILES_FIELD,
-                                        sourceEntryConverter.convertToStorageType(variantSourceEntry)))
+//                        .append("$push",
+//                                new BasicDBObject(
+//                                        DBObjectToVariantConverter.FILES_FIELD,
+//                                        sourceEntryConverter.convertToStorageType(variantSourceEntry)))
                         .append("$setOnInsert", variantConverter.convertToStorageType(variant));
+
+                BasicDBObject eachPush = new BasicDBObject();
+                for (String genotype : samples.keySet()) {
+                    eachPush.append(DBObjectToVariantConverter.FILES_FIELD + "." + DBObjectToVariantSourceEntryConverter.SAMPLES_FIELD + "." + genotype,
+                            new BasicDBObject("$each", samples.get(genotype)));
+                }
+                if (!eachPush.isEmpty()) {
+                    update.append("$push", eachPush);
+                }
+
                 if (variant.getIds() != null && !variant.getIds().isEmpty()) {
                     update.append("$addToSet",
                             new BasicDBObject(
@@ -332,11 +343,11 @@ public class VariantMongoDBWriter extends VariantDBWriter {
 
         sourceConverter = new DBObjectToVariantSourceConverter();
         statsConverter = includeStats ? new DBObjectToVariantStatsConverter() : null;
-        sampleConverter = includeSamples ? new DBObjectToSamplesConverter(compressDefaultGenotype, study.getSampleIds()): null; //TODO: Add default genotype
+        sampleConverter = includeSamples ? new DBObjectToSamplesConverter(defaultGenotype, study.getSampleIds()): null;
 
         sourceEntryConverter = new DBObjectToVariantSourceEntryConverter(
                 includeSrc,
-                sampleConverter,
+                null,
                 statsConverter);
         sourceEntryConverter.setIncludeSrc(includeSrc);
 

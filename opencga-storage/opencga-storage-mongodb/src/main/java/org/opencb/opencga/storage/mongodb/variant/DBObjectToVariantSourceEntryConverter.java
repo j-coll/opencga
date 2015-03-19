@@ -184,6 +184,8 @@ public class DBObjectToVariantSourceEntryConverter implements ComplexTypeConvert
         if (samplesConverter != null) {
             mongoFile.append(FORMAT_FIELD, object.getFormat()); // Useless field if genotypeCodes are not stored
             mongoFile.put(SAMPLES_FIELD, samplesConverter.convertToStorageType(object));
+        } else {
+            mongoFile.put(SAMPLES_FIELD, new BasicDBObject());  //TODO: FIXME
         }
         
         // Statistics

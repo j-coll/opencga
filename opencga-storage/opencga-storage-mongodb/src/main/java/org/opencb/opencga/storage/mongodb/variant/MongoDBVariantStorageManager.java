@@ -121,7 +121,7 @@ public class MongoDBVariantStorageManager extends VariantStorageManager {
         boolean includeStats = params.getBoolean(INCLUDE_STATS, Boolean.parseBoolean(properties.getProperty(OPENCGA_STORAGE_VARIANT_INCLUDE_STATS, "false")));
         boolean includeSrc = params.getBoolean(INCLUDE_SRC, Boolean.parseBoolean(properties.getProperty(OPENCGA_STORAGE_VARIANT_INCLUDE_SRC, "false")));
 
-        String defaultGenotype = params.getString(DEFAULT_GENOTYPE, properties.getProperty(OPENCGA_STORAGE_MONGODB_VARIANT_DEFAULT_GENOTYPE, ""));
+        String defaultGenotype = params.getString(DEFAULT_GENOTYPE, properties.getProperty(OPENCGA_STORAGE_MONGODB_VARIANT_DEFAULT_GENOTYPE, "0/0"));
         boolean compressSamples = params.getBoolean(COMPRESS_GENOTYPES, Boolean.parseBoolean(properties.getProperty(OPENCGA_STORAGE_MONGODB_VARIANT_COMPRESS_GENEOTYPES, "false")));
 
         VariantSource source = new VariantSource(inputUri.getPath(), "", "", "");       //Create a new VariantSource. This object will be filled at the VariantJsonReader in the pre()

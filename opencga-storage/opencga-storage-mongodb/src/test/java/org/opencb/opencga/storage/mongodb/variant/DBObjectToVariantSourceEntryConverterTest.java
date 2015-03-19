@@ -176,7 +176,7 @@ public class DBObjectToVariantSourceEntryConverterTest {
         // Test with no stats converter provided
         converter = new DBObjectToVariantSourceEntryConverter(
                 true,
-                new DBObjectToSamplesConverter(true, sampleIds),
+                new DBObjectToSamplesConverter("0/0", sampleIds),
                 null);
         convertedMongo = converter.convertToStorageType(file);
         assertEquals(mongoFileWithIds, convertedMongo);
@@ -186,7 +186,7 @@ public class DBObjectToVariantSourceEntryConverterTest {
         // Test with a stats converter provided but no stats object
         converter = new DBObjectToVariantSourceEntryConverter(
                 true,
-                new DBObjectToSamplesConverter(true, sampleIds),
+                new DBObjectToSamplesConverter("0/0", sampleIds),
                 new DBObjectToVariantStatsConverter());
         convertedMongo = converter.convertToStorageType(file);
         assertEquals(mongoFileWithIds, convertedMongo);
@@ -204,7 +204,7 @@ public class DBObjectToVariantSourceEntryConverterTest {
         // Test with no stats converter provided
         converter = new DBObjectToVariantSourceEntryConverter(
                 true,
-                new DBObjectToSamplesConverter(true, sampleIds),
+                new DBObjectToSamplesConverter("0/0", sampleIds),
                 null);
         convertedFile = converter.convertToDataModelType(mongoFileWithIds);
         assertEquals(file, convertedFile);
@@ -214,7 +214,7 @@ public class DBObjectToVariantSourceEntryConverterTest {
         // Test with a stats converter provided but no stats object
         converter = new DBObjectToVariantSourceEntryConverter(
                 true,
-                new DBObjectToSamplesConverter(true, sampleIds),
+                new DBObjectToSamplesConverter("0/0", sampleIds),
                 new DBObjectToVariantStatsConverter());
         convertedFile = converter.convertToDataModelType(mongoFileWithIds);
         assertEquals(file, convertedFile);

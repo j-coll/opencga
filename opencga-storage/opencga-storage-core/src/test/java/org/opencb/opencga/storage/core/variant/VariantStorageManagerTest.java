@@ -44,7 +44,7 @@ public abstract class VariantStorageManagerTest {
 
     @Before
     public void before() throws Exception {
-        clearDB();
+//        clearDB();
         variantStorageManager = getVariantStorageManager();
     }
 
@@ -70,13 +70,14 @@ public abstract class VariantStorageManagerTest {
      **/
     @Test
     public void singleThreadIndex() throws Exception {
-        clearDB();
+//        clearDB();
         ObjectMap params = new ObjectMap();
         StudyConfiguration studyConfiguration = newStudyConfiguration();
         params.put(VariantStorageManager.STUDY_CONFIGURATION, studyConfiguration);
         params.put(VariantStorageManager.FILE_ID, 6);
         params.put(VariantStorageManager.COMPRESS_METHOD, "gZiP");
-        params.put(VariantStorageManager.TRANSFORM_THREADS, 1);
+        params.put(VariantStorageManager.TRANSFORM_THREADS, 7);
+        params.put("defaultGenotype", "0|0");
         params.put(VariantStorageManager.LOAD_THREADS, 1);
         params.put(VariantStorageManager.INCLUDE_SAMPLES, true);
         params.put(VariantStorageManager.INCLUDE_SRC, true);
