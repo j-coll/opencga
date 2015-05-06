@@ -342,7 +342,9 @@ public abstract class VariantStorageManager implements StorageManager<VariantWri
                         studyConfiguration.getSampleIds().put(sampleName, sampleId);
                     } else {
                         if (studyConfiguration.getSampleIds().get(sampleName) == sampleId) {
-                            throw new StorageManagerException("Sample " + sampleName + ":" + sampleId + " was already loaded. It was in the StudyConfiguration");
+                            if (!params.getBoolean("allowAlreadyLoadedSamples", false)) {
+                                throw new StorageManagerException("Sample " + sampleName + ":" + sampleId + " was already loaded. It was in the StudyConfiguration");
+                            }
                         } else {
                             throw new StorageManagerException("Sample " + sampleName + ":" + sampleId + " was already loaded. It was in the StudyConfiguration with a different sampleId: " + studyConfiguration.getSampleIds().get(sampleName));
                         }
@@ -530,6 +532,7 @@ public abstract class VariantStorageManager implements StorageManager<VariantWri
         if (studyConfigurationManager == null) {
             if (params.containsKey(STUDY_CONFIGURATION_MANAGER_CLASS_NAME)) {
                 String studyConfigurationManagerClassName = params.getString(STUDY_CONFIGURATION_MANAGER_CLASS_NAME);
+                logger.info("Using StudyConfigurationManager " + studyConfigurationManagerClassName);
                 try {
                     studyConfigurationManager = StudyConfigurationManager.build(studyConfigurationManagerClassName, params);
                 } catch (ReflectiveOperationException e) {
