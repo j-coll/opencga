@@ -29,6 +29,7 @@ public interface CatalogUserDBAdaptor {
 
     QueryResult<Integer> deleteUser(String userId) throws CatalogDBException;
 
+    @Deprecated
     QueryResult<ObjectMap> login(String userId, String password, Session session) throws CatalogDBException;
 
     QueryResult<Session> addSession(String userId, Session session) throws CatalogDBException;

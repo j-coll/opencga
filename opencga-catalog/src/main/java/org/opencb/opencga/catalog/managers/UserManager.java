@@ -7,6 +7,8 @@ import org.opencb.opencga.catalog.CatalogManager;
 import org.opencb.opencga.catalog.authentication.CatalogAuthenticationManager;
 import org.opencb.opencga.catalog.db.api.CatalogDBAdaptor;
 import org.opencb.opencga.catalog.exceptions.CatalogException;
+import org.opencb.opencga.catalog.session.CatalogSessionManager;
+import org.opencb.opencga.catalog.session.SessionManager;
 import org.opencb.opencga.catalog.utils.ParamUtils;
 import org.opencb.opencga.catalog.authentication.AuthenticationManager;
 import org.opencb.opencga.catalog.authorization.AuthorizationManager;
@@ -21,6 +23,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
@@ -30,7 +34,7 @@ import java.util.regex.Pattern;
 public class UserManager extends AbstractManager implements IUserManager {
 
     protected final String creationUserPolicy;
-//    private final SessionManager sessionManager;
+    private final SessionManager sessionManager;
 
     protected static Logger logger = LoggerFactory.getLogger(UserManager.class);
 
@@ -44,7 +48,7 @@ public class UserManager extends AbstractManager implements IUserManager {
                        Properties catalogProperties) {
         super(authorizationManager, authenticationManager, catalogDBAdaptor, ioManagerFactory, catalogProperties);
         creationUserPolicy = catalogProperties.getProperty(CatalogManager.CATALOG_MANAGER_POLICY_CREATION_USER, "always");
-//        sessionManager = new CatalogSessionManager(userDBAdaptor, authenticationManager);
+        sessionManager = new CatalogSessionManager(userDBAdaptor, authenticationManager);
     }
 
 
@@ -245,12 +249,12 @@ public class UserManager extends AbstractManager implements IUserManager {
         ParamUtils.checkParameter(sessionIp, "sessionIp");
         Session session = new Session(sessionIp);
 
-//        Session login = sessionManager.login(userId, password, sessionIp);
-//        ObjectMap objectMap = new ObjectMap("sessionId", login.getId());
-//        objectMap.put("userId", userId);
-//        return new QueryResult<>("login", 0, 1, 1, null, null, Collections.singletonList(objectMap));
+        Session login = sessionManager.login(userId, password, sessionIp);
+        ObjectMap objectMap = new ObjectMap("sessionId", login.getId());
+        objectMap.put("userId", userId);
+        return new QueryResult<>("login", 0, 1, 1, null, null, Collections.singletonList(objectMap));
 
-        return userDBAdaptor.login(userId, CatalogAuthenticationManager.cipherPassword(password), session);
+//        return userDBAdaptor.login(userId, CatalogAuthenticationManager.cipherPassword(password), session);
     }
 
     @Override
@@ -260,9 +264,9 @@ public class UserManager extends AbstractManager implements IUserManager {
         checkSessionId(userId, sessionId);
         switch (authorizationManager.getUserRole(userId)) {
             default:
-//                List<Session> sessions = Collections.singletonList(sessionManager.logout(userId, sessionId));
-//                return new QueryResult<>("logout", 0, 1, 1, "", "", sessions);
-                return userDBAdaptor.logout(userId, sessionId);
+                List<Session> sessions = Collections.singletonList(sessionManager.logout(userId, sessionId));
+                return new QueryResult<>("logout", 0, 1, 1, "", "", sessions);
+//                return userDBAdaptor.logout(userId, sessionId);
             case ANONYMOUS:
                 return logoutAnonymous(sessionId);
         }

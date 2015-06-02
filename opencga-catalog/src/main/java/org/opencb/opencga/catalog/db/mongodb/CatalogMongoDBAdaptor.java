@@ -298,6 +298,7 @@ public class CatalogMongoDBAdaptor extends CatalogDBAdaptor
     }
 
     @Override
+    @Deprecated
     public QueryResult<ObjectMap> login(String userId, String password, Session session) throws CatalogDBException {
         checkParameter(userId, "userId");
         checkParameter(password, "password");
