@@ -19,8 +19,10 @@ package org.opencb.opencga.app.cli.main;
 import com.beust.jcommander.ParameterException;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -35,7 +37,9 @@ import org.opencb.datastore.core.QueryOptions;
 import org.opencb.datastore.core.QueryResult;
 import org.opencb.opencga.analysis.execution.AnalysisJobExecutor;
 import org.opencb.opencga.analysis.AnalysisOutputRecorder;
+import org.opencb.opencga.analysis.execution.json.OptionMixIn;
 import org.opencb.opencga.analysis.execution.model.Manifest;
+import org.opencb.opencga.analysis.execution.model.Option;
 import org.opencb.opencga.analysis.files.FileMetadataReader;
 import org.opencb.opencga.analysis.files.FileScanner;
 import org.opencb.opencga.analysis.storage.AnalysisFileIndexer;
@@ -971,17 +975,20 @@ public class OpenCGAMain {
                     }
                     case "check": {
                         OptionsParser.ToolCommands.CheckCommand c = optionsParser.getToolCommands().checkCommand;
+                        ObjectMapper objectMapper = new ObjectMapper();
+                        objectMapper.addMixIn(Option.class, OptionMixIn.class);
+                        objectMapper.configure(DeserializationFeature.READ_ENUMS_USING_TO_STRING, true);
+                        //objectMapper.configure(JsonGenerator.Feature.IGNORE_UNKNOWN, true);
                         if(c.toolFolder != null) {
                             Path manifestPath= Paths.get(c.toolFolder).resolve("manifest.json");
                             FileUtils.checkFile(manifestPath);
-                            ObjectMapper objectMapper = new ObjectMapper();
                             objectMapper.readValue(manifestPath.toFile(), Manifest.class);
+                            System.out.println("Manifest file '" + manifestPath.toString() + "' is valid");
                         } else {
                             if(c.toolsFolder != null) {
                                 Path toolsPath= Paths.get(c.toolsFolder);
                                 FileUtils.checkDirectory(toolsPath);
 
-                                ObjectMapper objectMapper = new ObjectMapper();
                                 try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(toolsPath)) {
                                     Path manifestPath = null;
                                     for (Path path : directoryStream) {
