@@ -36,6 +36,8 @@ public interface IJobManager extends ResourceManager<Integer, Job> {
     QueryResult<Tool> createTool(String alias, String description, Object manifest, Object result,
                                  String path, boolean openTool, String sessionId) throws CatalogException;
 
+    QueryResult<Tool> removeTool(int id, String sessionId) throws CatalogException;
+
     QueryResult<Tool> readTool(int id, String sessionId) throws CatalogException;
 
     QueryResult<Tool> readAllTools(QueryOptions queryOptions, String sessionId) throws CatalogException;

@@ -1002,6 +1002,7 @@ public class OptionsParser {
         final CreateCommand createCommand;
         final InfoCommand infoCommand;
         final CheckCommand checkCommand;
+        final RemoveCommand removeCommand;
 
         public ToolCommands(JCommander jcommander) {
             jcommander.addCommand(this);
@@ -1009,6 +1010,7 @@ public class OptionsParser {
             tools.addCommand(this.createCommand = new CreateCommand());
             tools.addCommand(this.infoCommand = new InfoCommand());
             tools.addCommand(this.checkCommand = new CheckCommand());
+            tools.addCommand(this.removeCommand = new RemoveCommand());
         }
 
         @Parameters(commandNames = {"create"}, commandDescription = "Register external tool into catalog")
@@ -1061,6 +1063,18 @@ public class OptionsParser {
 
             @Parameter(names = {"--tools-folder"}, description = "Folder containing all tools", arity = 1)
             String toolsFolder;
+        }
+
+        @Parameters(commandNames = {"remove"}, commandDescription = "Remove a tool from a session ID")
+        class RemoveCommand {
+            @ParametersDelegate
+            UserAndPasswordOptions up = userAndPasswordOptions;
+
+            @ParametersDelegate
+            CommonOptions cOpt = commonOptions;
+
+            @Parameter(names = {"-id", "--tool-id"}, description = "Tool id", required = true, arity = 1)
+            String id;
         }
 
     }

@@ -966,6 +966,11 @@ public class OpenCGAMain {
 
                         break;
                     }
+                    case "remove": {
+                        // TODO: Remove tool
+
+                        break;
+                    }
                     case "info": {
                         OptionsParser.ToolCommands.InfoCommand c = optionsParser.getToolCommands().infoCommand;
 
