@@ -16,11 +16,13 @@
 
 package org.opencb.opencga.analysis.execution;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.opencb.datastore.core.ObjectMap;
 import org.opencb.datastore.core.QueryOptions;
 import org.opencb.datastore.core.QueryResult;
 import org.opencb.opencga.analysis.AnalysisOutputRecorder;
+import org.opencb.opencga.analysis.execution.json.OptionMixIn;
 import org.opencb.opencga.catalog.exceptions.CatalogException;
 import org.opencb.opencga.catalog.CatalogManager;
 import org.opencb.opencga.catalog.io.CatalogIOManager;
@@ -397,6 +399,8 @@ public class AnalysisJobExecutor {
 
     public Manifest getManifest() throws IOException, AnalysisExecutionException {
         if (manifest == null) {
+            jsonObjectMapper.addMixIn(Option.class, OptionMixIn.class);
+            jsonObjectMapper.configure(DeserializationFeature.READ_ENUMS_USING_TO_STRING, true);
             manifest = jsonObjectMapper.readValue(manifestFile.toFile(), Manifest.class);
 //            analysis = gson.fromJson(IOUtils.toString(manifestFile.toFile()), Analysis.class);
         }

@@ -80,7 +80,6 @@ public class ToolWSServer extends OpenCGAWSServer {
                            @ApiParam(value = "userId", required = false) @QueryParam(value = "userId") @DefaultValue("") String userId,
                            @ApiParam(value = "alias", required = false) @QueryParam(value = "alias") @DefaultValue("") String alias) {
         try {
-            catalogManager.getAllTools(queryOptions, sessionId);
             QueryResult<Tool> toolResult = catalogManager.getAllTools(queryOptions, sessionId);
             for (Tool tool : toolResult.getResult()) {
                 AnalysisJobExecutor analysisJobExecutor = new AnalysisJobExecutor(Paths.get(tool.getPath()).getParent(), tool.getName(), "");
