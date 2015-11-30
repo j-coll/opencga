@@ -922,6 +922,10 @@ public class CatalogManager implements AutoCloseable {
         return jobManager.createTool(alias, description, manifest, result, path, openTool, sessionId);
     }
 
+    public QueryResult<Tool> removeTool(int id, String sessionId) throws CatalogException {
+        return jobManager.removeTool(id, sessionId);
+    }
+
     public QueryResult<Tool> getTool(int id, String sessionId) throws CatalogException {
         return jobManager.readTool(id, sessionId);
     }
@@ -929,4 +933,5 @@ public class CatalogManager implements AutoCloseable {
     public QueryResult<Tool> getAllTools(QueryOptions queryOptions, String sessionId) throws CatalogException {
         return jobManager.readAllTools(queryOptions, sessionId);
     }
+
 }

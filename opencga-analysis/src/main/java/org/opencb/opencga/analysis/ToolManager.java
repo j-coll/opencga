@@ -16,8 +16,10 @@
 
 package org.opencb.opencga.analysis;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.opencb.opencga.analysis.execution.AnalysisExecutionException;
+import org.opencb.opencga.analysis.execution.json.OptionMixIn;
 import org.opencb.opencga.analysis.execution.model.*;
 import org.opencb.opencga.analysis.execution.plugins.OpenCGAPlugin;
 import org.opencb.opencga.analysis.execution.plugins.PluginFactory;
@@ -204,6 +206,8 @@ public class ToolManager {
 
     public Manifest getManifest() throws IOException, AnalysisExecutionException {
         if (manifest == null) {
+            jsonObjectMapper.addMixIn(Option.class, OptionMixIn.class);
+            jsonObjectMapper.configure(DeserializationFeature.READ_ENUMS_USING_TO_STRING, true);
             manifest = jsonObjectMapper.readValue(manifestFile.toFile(), Manifest.class);
 //            analysis = gson.fromJson(IOUtils.toString(manifestFile.toFile()), Analysis.class);
         }

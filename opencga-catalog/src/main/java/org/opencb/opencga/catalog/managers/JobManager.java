@@ -267,6 +267,12 @@ public class JobManager extends AbstractManager implements IJobManager {
     }
 
     @Override
+    public QueryResult<Tool> removeTool(int id, String sessionId) throws CatalogException {
+        // TODO: Remove tool
+        return null;
+    }
+
+    @Override
     public QueryResult<Tool> readTool(int id, String sessionId) throws CatalogException {
         String userId = userDBAdaptor.getUserIdBySessionId(sessionId);
         ParamUtils.checkParameter(sessionId, "sessionId");

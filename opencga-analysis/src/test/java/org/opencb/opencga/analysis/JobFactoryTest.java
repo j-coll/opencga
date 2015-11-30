@@ -1,11 +1,14 @@
 package org.opencb.opencga.analysis;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Before;
 import org.junit.Test;
 import org.opencb.commons.utils.StringUtils;
 import org.opencb.datastore.core.QueryResult;
+import org.opencb.opencga.analysis.execution.json.OptionMixIn;
 import org.opencb.opencga.analysis.execution.model.Manifest;
+import org.opencb.opencga.analysis.execution.model.Option;
 import org.opencb.opencga.catalog.CatalogManager;
 import org.opencb.opencga.catalog.CatalogManagerTest;
 import org.opencb.opencga.catalog.models.*;
@@ -58,6 +61,8 @@ public class JobFactoryTest {
     public void loadManifestTest() throws Exception {
         Path inputPath = Paths.get(getClass().getResource("/manifest.json").toURI());
         ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.addMixIn(Option.class, OptionMixIn.class);
+        objectMapper.configure(DeserializationFeature.READ_ENUMS_USING_TO_STRING, true);
         Manifest manifest = objectMapper.readValue(inputPath.toFile(), Manifest.class);
         assertNotNull("Manifest object is null", manifest);
     }

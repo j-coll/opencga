@@ -19,16 +19,7 @@
       "id": "default",
       "name": "default",
       "executable": "burden.sh",
-      "input": [
-        {
-          "name": "vcf",
-          "dataType": "txt"
-        },
-        {
-          "name": "ped",
-          "dataType": "txt"
-        }
-      ],
+      "input": [],
       "output": "outdir",
       "parameters": [
         {
