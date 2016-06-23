@@ -182,7 +182,8 @@ public class MongoDBVariantStorageETL extends VariantStorageETL {
 
             ParallelTaskRunner<Variant, Variant> ptr;
             MongoDBVariantStageLoader stageLoader =
-                    new MongoDBVariantStageLoader(stageCollection, studyConfiguration.getStudyId(), fileId, numRecords);
+                    new MongoDBVariantStageLoader(stageCollection, studyConfiguration.getStudyId(), fileId, numRecords,
+                            options.getBoolean(STAGE_RESUME.key()));
 
             ptr = new ParallelTaskRunner<>(
                     variantReader,
@@ -391,7 +392,37 @@ public class MongoDBVariantStorageETL extends VariantStorageETL {
             throws StorageManagerException {
 
         long start = System.currentTimeMillis();
-        StudyConfiguration studyConfiguration = getStudyConfiguration();
+        int studyId = getStudyId();
+        StudyConfiguration studyConfiguration;
+        long lock = dbAdaptor.getStudyConfigurationManager().lockStudy(studyId);
+        try {
+            studyConfiguration = getStudyConfiguration(true);
+
+            //preMerge()
+
+            for (Integer fileId : fileIds) {
+                if (studyConfiguration.getIndexedFiles().contains(fileId)) {
+                    throw StorageManagerException.alreadyLoaded(fileId, studyConfiguration);
+                }
+            }
+            for (int i = studyConfiguration.getBatches().size() - 1; i >= 0; i--) {
+                BatchFileOperation operation = studyConfiguration.getBatches().get(i);
+                if (operation.getOperationName().equals(MERGE.key())) {
+                    switch (operation.currentStatus()) {
+                        case RUNNING:
+                            break;
+                        case READY:
+                            break;
+                        case ERROR:
+                            break;
+                        default:
+                            throw new IllegalStateException("Unknown status: " + operation.currentStatus());
+                    }
+                }
+            }
+        } finally {
+            dbAdaptor.getStudyConfigurationManager().unLockStudy(studyId, lock);
+        }
 
 
         //Iterate over all the files
