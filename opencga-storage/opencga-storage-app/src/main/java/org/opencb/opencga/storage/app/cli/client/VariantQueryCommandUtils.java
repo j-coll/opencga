@@ -18,9 +18,9 @@ package org.opencb.opencga.storage.app.cli.client;
 
 import com.beust.jcommander.ParameterException;
 import org.apache.commons.lang3.StringUtils;
-import org.opencb.commons.utils.FileUtils;
 import org.opencb.commons.datastore.core.Query;
 import org.opencb.commons.datastore.core.QueryOptions;
+import org.opencb.commons.utils.FileUtils;
 import org.opencb.opencga.storage.core.variant.adaptors.VariantDBAdaptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -205,23 +205,25 @@ public class VariantQueryCommandUtils {
         QueryOptions queryOptions = new QueryOptions(new HashMap<>(queryVariantsOptions.commonOptions.params));
 
         if (StringUtils.isNotEmpty(queryVariantsOptions.include)) {
-            queryOptions.add("include", queryVariantsOptions.include);
+            queryOptions.add(QueryOptions.INCLUDE, queryVariantsOptions.include);
         }
 
         if (StringUtils.isNotEmpty(queryVariantsOptions.exclude)) {
-            queryOptions.add("exclude", queryVariantsOptions.exclude + ",_id");
+            queryOptions.add(QueryOptions.EXCLUDE, queryVariantsOptions.exclude + ",_id");
         }
 //        else {
 //            queryOptions.put("exclude", "_id");
 //        }
 
         if (queryVariantsOptions.skip > 0) {
-            queryOptions.add("skip", queryVariantsOptions.skip);
+            queryOptions.add(QueryOptions.SKIP, queryVariantsOptions.skip);
         }
 
         if (queryVariantsOptions.limit > 0) {
-            queryOptions.add("limit", queryVariantsOptions.limit);
+            queryOptions.add(QueryOptions.LIMIT, queryVariantsOptions.limit);
         }
+
+        queryOptions.add(QueryOptions.SORT, queryVariantsOptions.sort);
 
         if (queryVariantsOptions.count) {
             queryOptions.add("count", true);
@@ -244,6 +246,9 @@ public class VariantQueryCommandUtils {
                 case "json":
                     gzip = false;
                 case "json.gz":
+                    break;
+                case "avro":
+                case "avro.gz":
                     break;
                 default:
                     logger.error("Format '{}' not supported", queryVariantsOptions.outputFormat);

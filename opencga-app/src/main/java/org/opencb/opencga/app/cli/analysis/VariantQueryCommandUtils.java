@@ -23,6 +23,7 @@ import org.opencb.commons.datastore.core.QueryOptions;
 import org.opencb.commons.utils.FileUtils;
 import org.opencb.opencga.storage.core.variant.adaptors.VariantDBAdaptor;
 import org.opencb.opencga.storage.core.variant.io.VariantVcfExporter;
+import org.opencb.opencga.storage.core.variant.io.VariantWriterFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +35,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
-import static org.opencb.opencga.app.cli.analysis.VariantQueryCommandUtils.VariantOutputFormat.*;
+import static org.opencb.opencga.storage.core.variant.io.VariantWriterFactory.VariantOutputFormat.*;
 import static org.opencb.opencga.storage.core.variant.adaptors.VariantDBAdaptor.VariantQueryParams.*;
 
 /**
@@ -43,49 +44,6 @@ import static org.opencb.opencga.storage.core.variant.adaptors.VariantDBAdaptor.
 public class VariantQueryCommandUtils {
 
     private static Logger logger = LoggerFactory.getLogger("org.opencb.opencga.storage.app.cli.client.VariantQueryCommandUtils");
-
-    public enum VariantOutputFormat {
-        VCF(false),
-        JSON,
-        AVRO,
-        STATS(false),
-        CELLBASE;
-
-        private final boolean multiStudy;
-
-        VariantOutputFormat() {
-            this.multiStudy = true;
-        }
-
-        VariantOutputFormat(boolean multiStudy) {
-            this.multiStudy = multiStudy;
-        }
-
-        public boolean isMultiStudyOutput() {
-            return multiStudy;
-        }
-
-        static boolean isGzip(String value) {
-            return value.endsWith(".gz");
-        }
-
-        static boolean isSnappy(String value) {
-            return value.endsWith(".snappy");
-        }
-
-        static VariantOutputFormat safeValueOf(String value) {
-            int index = value.indexOf(".");
-            if (index >= 0) {
-                value = value.substring(0, index);
-            }
-            try {
-                return VariantOutputFormat.valueOf(value.toUpperCase());
-            } catch (IllegalArgumentException ignore) {
-                return null;
-            }
-        }
-
-    }
 
     public static Query parseQuery(AnalysisCliOptionsParser.QueryVariantCommandOptions queryVariantsOptions, Map<Long, String> studyIds)
             throws Exception {
@@ -210,9 +168,9 @@ public class VariantQueryCommandUtils {
                 && StringUtils.isEmpty(queryVariantsOptions.rank);
 
 
-        VariantOutputFormat of = VCF;
+        VariantWriterFactory.VariantOutputFormat of = VCF;
         if (StringUtils.isNotEmpty(queryVariantsOptions.outputFormat)) {
-            of = VariantOutputFormat.safeValueOf(queryVariantsOptions.outputFormat);
+            of = VariantWriterFactory.VariantOutputFormat.safeValueOf(queryVariantsOptions.outputFormat);
             if (of == null) {
                 throw variantFormatNotSupported(queryVariantsOptions.outputFormat);
             }
@@ -274,13 +232,13 @@ public class VariantQueryCommandUtils {
          * Output parameters
          */
         boolean gzip = true;
-        VariantOutputFormat outputFormat;
+        VariantWriterFactory.VariantOutputFormat outputFormat;
         if (StringUtils.isNotEmpty(queryVariantsOptions.outputFormat)) {
-            outputFormat = VariantOutputFormat.safeValueOf(queryVariantsOptions.outputFormat);
+            outputFormat = VariantWriterFactory.VariantOutputFormat.safeValueOf(queryVariantsOptions.outputFormat);
             if (outputFormat == null) {
                 throw variantFormatNotSupported(queryVariantsOptions.outputFormat);
             } else {
-                gzip = VariantOutputFormat.isGzip(queryVariantsOptions.outputFormat);
+                gzip = VariantWriterFactory.VariantOutputFormat.isGzip(queryVariantsOptions.outputFormat);
             }
         } else {
             outputFormat = VCF;

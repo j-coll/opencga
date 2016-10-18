@@ -274,6 +274,9 @@ public class CliOptionsParser extends OptionsParser {
         @Parameter(names = {"--limit"}, description = "Limit the number of returned elements.", required = false, arity = 1)
         public int limit;
 
+        @Parameter(names = {"--sort"}, description = "Sort the output variants.")
+        public boolean sort = false;
+
         @Parameter(names = {"--count"}, description = "Count results. Do not return elements.", required = false, arity = 0)
         public boolean count;
 

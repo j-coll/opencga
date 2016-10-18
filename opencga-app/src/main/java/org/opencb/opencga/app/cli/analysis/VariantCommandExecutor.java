@@ -57,6 +57,7 @@ import org.opencb.opencga.storage.core.variant.annotation.VariantAnnotationManag
 import org.opencb.opencga.storage.core.variant.annotation.VariantAnnotator;
 import org.opencb.opencga.storage.core.variant.annotation.VariantAnnotatorException;
 import org.opencb.opencga.storage.core.variant.io.VariantVcfExporter;
+import org.opencb.opencga.storage.core.variant.io.VariantWriterFactory;
 import org.opencb.opencga.storage.core.variant.io.avro.VariantAvroWriter;
 import org.opencb.opencga.storage.core.variant.stats.VariantStatisticsManager;
 
@@ -201,7 +202,7 @@ public class VariantCommandExecutor extends AnalysisStorageCommandExecutor {
 
                 StudyConfiguration studyConfiguration;
                 final DataWriter<Variant> exporter;
-                switch (VariantQueryCommandUtils.VariantOutputFormat.safeValueOf(outputFormat)) {
+                switch (VariantWriterFactory.VariantOutputFormat.safeValueOf(outputFormat)) {
                     case VCF:
 //                StudyConfigurationManager studyConfigurationManager = variantDBAdaptor.getStudyConfigurationManager();
 //                Map<Long, List<Sample>> samplesMetadata = variantFetcher.getSamplesMetadata(studyId, query, queryOptions, sessionId);
@@ -244,7 +245,7 @@ public class VariantCommandExecutor extends AnalysisStorageCommandExecutor {
                         break;
                     case AVRO:
                         String codecName = "";
-                        if (VariantQueryCommandUtils.VariantOutputFormat.isGzip(outputFormat)) {
+                        if (VariantWriterFactory.VariantOutputFormat.isGzip(outputFormat)) {
                             codecName = "gzip";
                         }
                         if (outputFormat.endsWith("snappy")) {

@@ -24,21 +24,25 @@ import io.grpc.ManagedChannelBuilder;
 import org.apache.commons.lang3.StringUtils;
 import org.opencb.biodata.formats.io.FileFormatException;
 import org.opencb.biodata.models.variant.Variant;
-import org.opencb.commons.utils.FileUtils;
+import org.opencb.biodata.models.variant.avro.VariantAvro;
 import org.opencb.commons.datastore.core.ObjectMap;
 import org.opencb.commons.datastore.core.Query;
 import org.opencb.commons.datastore.core.QueryOptions;
 import org.opencb.commons.datastore.core.QueryResult;
+import org.opencb.commons.io.DataReader;
+import org.opencb.commons.run.ParallelTaskRunner;
+import org.opencb.commons.utils.FileUtils;
+import org.opencb.opencga.core.common.ProgressLogger;
 import org.opencb.opencga.core.common.TimeUtils;
 import org.opencb.opencga.core.common.UriUtils;
 import org.opencb.opencga.storage.app.cli.CommandExecutor;
 import org.opencb.opencga.storage.app.cli.OptionsParser;
-import org.opencb.opencga.storage.core.exceptions.StorageManagerException;
 import org.opencb.opencga.storage.core.StorageManagerFactory;
-import org.opencb.opencga.storage.core.metadata.StudyConfiguration;
 import org.opencb.opencga.storage.core.benchmark.BenchmarkManager;
 import org.opencb.opencga.storage.core.config.DatabaseCredentials;
 import org.opencb.opencga.storage.core.config.StorageEngineConfiguration;
+import org.opencb.opencga.storage.core.exceptions.StorageManagerException;
+import org.opencb.opencga.storage.core.metadata.StudyConfiguration;
 import org.opencb.opencga.storage.core.variant.FileStudyConfigurationManager;
 import org.opencb.opencga.storage.core.variant.StudyConfigurationManager;
 import org.opencb.opencga.storage.core.variant.VariantStorageManager;
@@ -48,6 +52,7 @@ import org.opencb.opencga.storage.core.variant.annotation.VariantAnnotationManag
 import org.opencb.opencga.storage.core.variant.annotation.VariantAnnotator;
 import org.opencb.opencga.storage.core.variant.annotation.VariantAnnotatorException;
 import org.opencb.opencga.storage.core.variant.io.VariantVcfExporter;
+import org.opencb.opencga.storage.core.variant.io.avro.VariantAvroWriter;
 import org.opencb.opencga.storage.core.variant.stats.VariantStatisticsManager;
 import org.opencb.opencga.storage.server.grpc.GenericServiceModel;
 import org.opencb.opencga.storage.server.grpc.VariantProto;
@@ -253,11 +258,11 @@ public class VariantCommandExecutor extends CommandExecutor {
         }
 
 
-        String outputFormat = "vcf";
+        String outputFormat;
         if (StringUtils.isNotEmpty(queryVariantsCommandOptions.outputFormat)) {
-            if (queryVariantsCommandOptions.outputFormat.equals("json") || queryVariantsCommandOptions.outputFormat.equals("json.gz")) {
-                outputFormat = "json";
-            }
+            outputFormat = queryVariantsCommandOptions.outputFormat.toLowerCase().replace(".gz", "");
+        } else {
+            outputFormat = "vcf";
         }
 
         ObjectMapper objectMapper = new ObjectMapper();
@@ -269,29 +274,46 @@ public class VariantCommandExecutor extends CommandExecutor {
                 System.out.println("groupBy = " + objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(groupBy));
             } else {
                 VariantDBIterator iterator = variantDBAdaptor.iterator(query, options);
-                if (outputFormat.equalsIgnoreCase("vcf")) {
-                    StudyConfigurationManager studyConfigurationManager = variantDBAdaptor.getStudyConfigurationManager();
-                    QueryResult<StudyConfiguration> studyConfigurationResult = studyConfigurationManager.getStudyConfiguration(
-                            query.getAsStringList(RETURNED_STUDIES.key()).get(0), null);
-                    if (studyConfigurationResult.getResult().size() >= 1) {
-                        // Samples to be returned
-                        if (query.containsKey(RETURNED_SAMPLES.key())) {
-                            options.put(RETURNED_SAMPLES.key(), query.get(RETURNED_SAMPLES.key()));
-                        }
+                switch (outputFormat) {
+                    case "vcf":
+                        StudyConfigurationManager studyConfigurationManager = variantDBAdaptor.getStudyConfigurationManager();
+                        QueryResult<StudyConfiguration> studyConfigurationResult = studyConfigurationManager.getStudyConfiguration(
+                                query.getAsStringList(RETURNED_STUDIES.key()).get(0), null);
+                        if (studyConfigurationResult.getResult().size() >= 1) {
+                            // Samples to be returned
+                            if (query.containsKey(RETURNED_SAMPLES.key())) {
+                                options.put(RETURNED_SAMPLES.key(), query.get(RETURNED_SAMPLES.key()));
+                            }
 
-//                        options.add("includeAnnotations", queryVariantsCommandOptions.includeAnnotations);
-                        if (queryVariantsCommandOptions.annotations != null) {
-                            options.add("annotations", queryVariantsCommandOptions.annotations);
+                            //                        options.add("includeAnnotations", queryVariantsCommandOptions.includeAnnotations);
+                            if (queryVariantsCommandOptions.annotations != null) {
+                                options.add("annotations", queryVariantsCommandOptions.annotations);
+                            }
+                            VariantVcfExporter.htsExport(iterator, studyConfigurationResult.first(),
+                                    variantDBAdaptor.getVariantSourceDBAdaptor(), outputStream, options);
+                        } else {
+                            logger.warn("no study found named " + query.getAsStringList(RETURNED_STUDIES.key()).get(0));
                         }
-                        VariantVcfExporter.htsExport(iterator, studyConfigurationResult.first(),
-                                variantDBAdaptor.getVariantSourceDBAdaptor(), outputStream, options);
-                    } else {
-                        logger.warn("no study found named " + query.getAsStringList(RETURNED_STUDIES.key()).get(0));
-                    }
 //                    printVcfResult(iterator, studyConfigurationManager, printWriter);
-                } else {
-                    // we know that it is JSON, otherwise we have not reached this point
-                    printJsonResult(iterator, outputStream);
+                        break;
+                    case "json":
+                        printJsonResult(iterator, outputStream);
+                        break;
+                    case "avro":
+                        DataReader<Variant> dataReader = batchSize -> iterator.hasNext() ? Collections.singletonList(iterator.next())
+                                : null;
+                        ParallelTaskRunner.Config config = ParallelTaskRunner.Config.builder().setNumTasks(1).setSorted(true)
+                                .setAbortOnFail(true).build();
+                        VariantAvroWriter writer = new VariantAvroWriter(VariantAvro.getClassSchema(), "deflate", outputStream);
+//                        ProgressLogger progressLogger = new ProgressLogger("Exported variants: ",
+//                                () -> variantDBAdaptor.count(query).first(), 200);
+                        ProgressLogger progressLogger = new ProgressLogger("Exported variants: ", 0, 200);
+                        ParallelTaskRunner ptr = new ParallelTaskRunner<>(dataReader, batch -> {
+                            progressLogger.increment(batch.size(), () -> "up to position " + batch.get(batch.size() - 1));
+                            return batch;
+                        }, writer, config);
+                        ptr.run();
+                        break;
                 }
                 iterator.close();
             }

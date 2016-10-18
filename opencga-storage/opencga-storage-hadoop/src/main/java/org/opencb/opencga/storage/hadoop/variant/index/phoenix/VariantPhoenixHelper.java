@@ -16,10 +16,12 @@
 
 package org.opencb.opencga.storage.hadoop.variant.index.phoenix;
 
+import com.google.common.base.Stopwatch;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.schema.types.*;
 import org.apache.phoenix.util.QueryUtil;
+import org.apache.phoenix.util.SchemaUtil;
 import org.opencb.opencga.storage.core.metadata.StudyConfiguration;
 import org.opencb.opencga.storage.core.variant.adaptors.VariantQueryException;
 import org.opencb.opencga.storage.hadoop.variant.GenomeHelper;
@@ -27,10 +29,14 @@ import org.opencb.opencga.storage.hadoop.variant.index.VariantTableStudyRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.opencb.opencga.storage.core.variant.adaptors.VariantDBAdaptor.VariantQueryParams.ANNOT_CONSERVATION;
 import static org.opencb.opencga.storage.hadoop.variant.index.phoenix.VariantPhoenixHelper.VariantColumn.*;
@@ -196,18 +202,15 @@ public class VariantPhoenixHelper {
 
     public void updateAnnotationFields(Connection con, String tableName) throws SQLException {
         VariantColumn[] annotColumns = new VariantColumn[]{GENES, BIOTYPE, SO, POLYPHEN, SIFT, PHYLOP, PHASTCONS, FULL_ANNOTATION};
-        for (VariantColumn column : annotColumns) {
-            String sql = buildAlterViewAddColumn(tableName, column.column(), column.sqlType(), true);
-            execute(con, sql);
-        }
+        String sql = buildAlterViewAddColumn(tableName, Arrays.asList(annotColumns), true);
+        execute(con, sql);
     }
 
     public void updateStatsFields(Connection con, String tableName, StudyConfiguration studyConfiguration) throws SQLException {
         for (Integer cohortId : studyConfiguration.getCohortIds().values()) {
-            for (Column column : getStatsColumns(studyConfiguration.getStudyId(), cohortId)) {
-                String sql = buildAlterViewAddColumn(tableName, column.column(), column.sqlType(), true);
-                execute(con, sql);
-            }
+            List<Column> statsColumns = getStatsColumns(studyConfiguration.getStudyId(), cohortId);
+            String sql = buildAlterViewAddColumn(tableName, statsColumns, true);
+            execute(con, sql);
         }
     }
 
@@ -222,16 +225,31 @@ public class VariantPhoenixHelper {
     }
 
     private void addView(Connection con, String table, Integer studyId, PDataType<?> dataType, String ... columns) throws SQLException {
-        for (String col : columns) {
-            String sql = buildAlterViewAddColumn(table, VariantTableStudyRow.buildColumnKey(studyId, col), dataType.getSqlTypeName());
-            execute(con, sql);
-        }
+        List<Column> list = Arrays.stream(columns)
+                .map(col -> VariantTableStudyRow.buildColumnKey(studyId, col))
+                .map(col -> Column.build(col, dataType))
+                .collect(Collectors.toList());
+        String sql = buildAlterViewAddColumn(table, list, false);
+        execute(con, sql);
     }
 
     private void execute(Connection con, String sql) throws SQLException {
         logger.debug(sql);
         try (Statement statement = con.createStatement()) {
+            Stopwatch started = Stopwatch.createStarted();
             statement.execute(sql);
+            if (started.stop().elapsed(TimeUnit.MILLISECONDS) > 1000) {
+                logger.info("Slow phoenix operation. Executing '{}' took {}s", sql, started.elapsed(TimeUnit.MILLISECONDS)/1000.0);
+            }
+        }
+        System.out.println("sql = " + sql);
+        try (FileOutputStream os = new FileOutputStream("/tmp/sql_record.sql", true)) {
+            os.write(java.time.Instant.now().toString().getBytes());
+            os.write("\t".getBytes());
+            os.write(sql.getBytes());
+            os.write("\n".getBytes());
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -267,6 +285,19 @@ public class VariantPhoenixHelper {
 
     public String buildAlterViewAddColumn(String tableName, String column, String type, boolean ifNotExists) {
         return "ALTER VIEW \"" + tableName + "\" ADD " + (ifNotExists ? "IF NOT EXISTS " : "") + "\"" + column + "\" " + type;
+    }
+
+    public String buildAlterViewAddColumn(String tableName, Collection<Column> columns, boolean ifNotExists) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("ALTER VIEW \"").append(tableName).append("\" ADD ").append(ifNotExists ? "IF NOT EXISTS " : "");
+        for (Iterator<Column> iterator = columns.iterator(); iterator.hasNext(); ) {
+            Column column = iterator.next();
+            sb.append(SchemaUtil.getEscapedArgument(column.column())).append(" ").append(column.sqlType());
+            if (iterator.hasNext()) {
+                sb.append(", ");
+            }
+        }
+        return sb.toString();
     }
 
     public static Column getFunctionalScoreColumn(String source) {

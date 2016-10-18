@@ -36,6 +36,7 @@ import org.opencb.opencga.storage.core.variant.VariantStorageTest;
 import org.opencb.opencga.storage.hadoop.utils.HBaseManager;
 import org.opencb.opencga.storage.hadoop.variant.archive.ArchiveDriver;
 import org.opencb.opencga.storage.hadoop.variant.executors.MRExecutor;
+import org.opencb.opencga.storage.hadoop.variant.index.AbstractVariantTableDriver;
 import org.opencb.opencga.storage.hadoop.variant.index.VariantTableDeletionDriver;
 import org.opencb.opencga.storage.hadoop.variant.index.VariantTableDriver;
 import org.opencb.opencga.storage.hadoop.variant.index.VariantTableMapper;
@@ -174,6 +175,9 @@ public interface HadoopVariantStorageManagerTestUtils /*extends VariantStorageMa
         options.put(VariantTableDriver.CONFIG_VARIANT_TABLE_COMPRESSION, supportedAlgorithms.contains(Compression.Algorithm.SNAPPY)
                 ? Compression.Algorithm.SNAPPY.getName()
                 : Compression.Algorithm.NONE.getName());
+
+        options.put(ArchiveDriver.CONFIG_ARCHIVE_TABLE_PRESPLIT_SIZE, 2);
+        options.put(AbstractVariantTableDriver.CONFIG_VARIANT_TABLE_PRESPLIT_SIZE, 2);
 
         FileSystem fs = FileSystem.get(HadoopVariantStorageManagerTestUtils.configuration.get());
         String intermediateDirectory = fs.getHomeDirectory().toUri().resolve("opencga_test/").toString();

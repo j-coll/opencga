@@ -814,7 +814,7 @@ public abstract class VariantDBAdaptorTest extends VariantStorageManagerTestUtil
     @Test
     public void testGetAllVariants_functionalScore_wrong() {
         String value = "cad<=0.5";
-        VariantQueryException expected = VariantQueryException.malformedParam(ANNOT_FUNCTIONAL_SCORE, value);
+        VariantQueryException expected = VariantQueryException.malformedParam(ANNOT_FUNCTIONAL_SCORE, "");
         thrown.expect(expected.getClass());
         thrown.expectMessage(expected.getMessage());
         dbAdaptor.get(new Query(ANNOT_FUNCTIONAL_SCORE.key(), value), null);
@@ -1400,8 +1400,10 @@ public abstract class VariantDBAdaptorTest extends VariantStorageManagerTestUtil
     public void testExcludeAnnotation() {
         queryResult = dbAdaptor.get(new Query(), new QueryOptions(QueryOptions.EXCLUDE, "annotation"));
         assertEquals(allVariants.getResult().size(), queryResult.getResult().size());
+        VariantAnnotation defaultAnnotation = new VariantAnnotation();
+        defaultAnnotation.setConsequenceTypes(Collections.emptyList());
         for (Variant variant : queryResult.getResult()) {
-            assertThat(variant.getAnnotation(), anyOf(is((VariantAnnotation) null), is(new VariantAnnotation())));
+            assertThat(variant.getAnnotation(), anyOf(is((VariantAnnotation) null), is(defaultAnnotation)));
         }
 
     }
