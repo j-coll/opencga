@@ -69,6 +69,26 @@ public interface HadoopVariantStorageManagerTestUtils /*extends VariantStorageMa
                 org.apache.log4j.Logger.getLogger(FSNamesystem.class.getName() + ".audit").setLevel(Level.WARN);
 
                 utility.set(new HBaseTestingUtility());
+
+                // Change port to avoid port collisions
+                utility.get().getConfiguration().setInt(HConstants.MASTER_INFO_PORT, HConstants.DEFAULT_MASTER_INFOPORT + 1);
+
+                // Enable phoenix secundary indexes
+                utility.get().getConfiguration().set("hbase.regionserver.wal.codec",
+                        org.apache.hadoop.hbase.regionserver.wal.IndexedWALEditCodec.class.getName());
+                utility.get().getConfiguration().set("hbase.region.server.rpc.scheduler.factory.class",
+                        org.apache.hadoop.hbase.ipc.PhoenixRpcSchedulerFactory.class.getName());
+                utility.get().getConfiguration().set("hbase.rpc.controllerfactory.class",
+                        org.apache.hadoop.hbase.ipc.controller.ServerRpcControllerFactory.class.getName());
+
+                // Not required in Phoenix 4.8
+//                utility.get().getConfiguration().set("hbase.master.loadbalancer.class",
+//                        org.apache.phoenix.hbase.index.balancer.IndexLoadBalancer.class.getName());
+//                utility.get().getConfiguration().set("hbase.coprocessor.master.classes",
+//                        org.apache.phoenix.hbase.index.master.IndexMasterObserver.class.getName());
+//                utility.get().getConfiguration().set("hbase.coprocessor.regionserver.classes",
+//                        org.apache.hadoop.hbase.regionserver.LocalIndexMerger.class.getName());
+
                 utility.get().startMiniCluster(1);
                 configuration.set(utility.get().getConfiguration());
 

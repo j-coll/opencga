@@ -283,6 +283,14 @@ public class GenomeHelper implements AutoCloseable {
         offset += PVarchar.INSTANCE.toBytes(ref, rk, offset);
         rk[offset++] = QueryConstants.SEPARATOR_BYTE;
         offset += PVarchar.INSTANCE.toBytes(alt, rk, offset);
+        if (offset != size) {
+            System.out.println("offset = " + offset);
+            System.out.println("size = " + size);
+            System.out.println("chrom = " + chrom);
+            System.out.println("position = " + position);
+            System.out.println("ref = " + ref);
+            System.out.println("alt = " + alt);
+        }
 //        assert offset == size;
         return rk;
     }
@@ -361,6 +369,9 @@ public class GenomeHelper implements AutoCloseable {
         int position = (Integer) PUnsignedInt.INSTANCE.toObject(variantRowKey, chrPosSeparator + 1, intSize, PUnsignedInt.INSTANCE);
         int referenceOffset = chrPosSeparator + 1 + intSize;
         int refAltSeparator = ArrayUtils.indexOf(variantRowKey, (byte) 0, referenceOffset);
+        if (refAltSeparator < referenceOffset) {
+            System.out.println("ERROR PARSING " + chromosome + " : " + position + " " + Arrays.toString(variantRowKey));
+        }
         String reference = (String) PVarchar.INSTANCE.toObject(variantRowKey, referenceOffset, refAltSeparator - referenceOffset,
                 PVarchar.INSTANCE);
         String alternate = (String) PVarchar.INSTANCE.toObject(variantRowKey, refAltSeparator + 1,

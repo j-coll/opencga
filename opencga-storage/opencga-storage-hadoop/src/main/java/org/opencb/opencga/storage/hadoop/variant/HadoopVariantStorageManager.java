@@ -654,4 +654,8 @@ public class HadoopVariantStorageManager extends VariantStorageManager {
             return source;
         }
     }
+
+    public Configuration getConf() {
+        return conf;
+    }
 }

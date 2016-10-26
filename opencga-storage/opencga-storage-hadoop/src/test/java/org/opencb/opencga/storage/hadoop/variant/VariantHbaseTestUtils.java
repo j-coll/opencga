@@ -138,7 +138,14 @@ public class VariantHbaseTestUtils {
                 if (Bytes.toString(result.getRow()).startsWith(genomeHelper.getMetaRowKeyString())) {
                     continue;
                 }
-                Variant variant = genomeHelper.extractVariantFromVariantRowKey(result.getRow());
+                Variant variant;
+                try {
+                    variant = genomeHelper.extractVariantFromVariantRowKey(result.getRow());
+                } catch (RuntimeException e) {
+                    e.printStackTrace();
+                    System.out.println("Arrays.toString(result.getRow()); = " + Arrays.toString(result.getRow()));
+                    continue;
+                }
                 os.println("Variant = " + variant);
                 for (Map.Entry<byte[], byte[]> entry : result.getFamilyMap(genomeHelper.getColumnFamily()).entrySet()) {
                     String key = Bytes.toString(entry.getKey());

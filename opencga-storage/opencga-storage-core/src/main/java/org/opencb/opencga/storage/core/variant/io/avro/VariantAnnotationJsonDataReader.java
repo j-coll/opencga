@@ -45,6 +45,7 @@ public class VariantAnnotationJsonDataReader implements DataReader<VariantAnnota
     private int readsCounter;
     private File file;
     protected Logger logger = LoggerFactory.getLogger(this.getClass().toString());
+    private boolean logEnabled = false;
 
     public VariantAnnotationJsonDataReader(File file) {
         readsCounter = 0;
@@ -91,8 +92,10 @@ public class VariantAnnotationJsonDataReader implements DataReader<VariantAnnota
             for (int i = 0; i < batchSize && parser.nextToken() != null; i++) {
                 batch.add(parser.readValueAs(VariantAnnotation.class));
                 readsCounter++;
-                if (readsCounter % 1000 == 0) {
-                    logger.info("Element {}", readsCounter);
+                if (logEnabled) {
+                    if (readsCounter % 1000 == 0) {
+                        logger.info("Element {}", readsCounter);
+                    }
                 }
             }
         } catch (IOException e) {
