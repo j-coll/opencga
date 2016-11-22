@@ -181,7 +181,7 @@ public class CellBaseVariantAnnotator extends VariantAnnotator {
     private List<VariantAnnotation> getVariantAnnotationsREST(List<Variant> variants) throws IOException {
 
         QueryResponse<VariantAnnotation> queryResponse
-                = cellBaseClient.getVariantClient()
+                = cellBaseClient.getVariationClient()
                 .getAnnotations(variants.stream().map(Variant::toString).collect(Collectors.toList()),
                         queryOptions, true);
 

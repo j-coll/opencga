@@ -20,6 +20,7 @@ import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.Sorts;
 import org.bson.Document;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.opencb.biodata.formats.io.FileFormatException;
 import org.opencb.commons.datastore.core.ObjectMap;
@@ -65,6 +66,50 @@ import static org.opencb.opencga.storage.mongodb.variant.converters.DocumentToSt
  * @author Jacobo Coll <jacobo167@gmail.com>
  */
 public class MongoVariantStorageManagerTest extends VariantStorageManagerTest implements MongoDBVariantStorageTest {
+
+    @Before
+    public void setUp() throws Exception {
+        printActiveThreads();
+    }
+
+    public void printActiveThreads() {
+        System.out.println("=========================================");
+        System.out.println("Thread.activeCount() = " + Thread.activeCount());
+
+        Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
+        Set<String> groups = allStackTraces.keySet().stream().map(t -> t.getThreadGroup().toString()).collect(Collectors.toSet());
+        for (String group : groups) {
+            System.out.println("group = " + group);
+            for (Map.Entry<Thread, StackTraceElement[]> entry : allStackTraces.entrySet()) {
+                Thread thread = entry.getKey();
+                if (thread.getThreadGroup().toString().equals(group)) {
+                    System.out.println("\t[" + thread.getId() + "] " + thread.toString() + ":" + thread.getState());
+                    if (thread.getName().equals("pool-5-thread-1")) {
+                        System.out.println("thread.isAlive() = " + thread.isAlive());
+                        System.out.println("Stacktrace = " + thread);
+                        System.out.println("------------");
+                        for (StackTraceElement element : allStackTraces.get(thread)) {
+                            System.out.println("   " + element);
+                        }
+                        System.out.println("------------");
+                        thread.interrupt();
+                        System.out.println("thread.isAlive() = " + thread.isAlive());
+
+                        thread.interrupt();
+                        System.out.println("thread.isAlive() = " + thread.isAlive());
+                        try {
+                            thread.join();
+                        } catch (InterruptedException e) {
+                            Thread.interrupted();
+                            throw new RuntimeException(e);
+                        }
+
+                    }
+                }
+            }
+        }
+        System.out.println("=========================================");
+    }
 
     @After
     public void tearDown() throws Exception {
