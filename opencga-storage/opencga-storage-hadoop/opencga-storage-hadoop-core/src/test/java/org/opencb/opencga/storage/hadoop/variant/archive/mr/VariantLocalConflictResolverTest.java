@@ -222,10 +222,13 @@ public class VariantLocalConflictResolverTest {
     @Test
     public void resolve_INS_REF() throws Exception {
         Variant a = addAttribute(getVariantFilter("1:100:-:GGTTG", "PASS"), QUAL, "731");
-        Variant b = addAttribute(getVariantFilter("1:100-103:AAAA", "PASS"), QUAL, "390");
+        Variant b = addAttribute(getVariantFilter("1:100-103:AAAA:.", "PASS"), QUAL, "390");
         b.setType(NO_VARIATION);
-        Collection<Variant> resolved = new VariantLocalConflictResolver().resolveConflicts(Arrays.asList(a, b));
+        List<Variant> resolved = new VariantLocalConflictResolver().resolveConflicts(Arrays.asList(a, b));
         assertEquals(2, resolved.size());
+        assertEquals(a, resolved.get(0));
+        assertEquals(b, resolved.get(1));
+
     }
 
     @Test
@@ -284,12 +287,12 @@ public class VariantLocalConflictResolverTest {
     @Test
     public void resolve_DEL_REF() throws Exception {
         Variant a = getVariant("1:997:AT:-", "PASS", "390", "0/1");
-        Variant b = getVariant("1:997:AT:-", "PASS", "390", "0/0");
+        Variant b = getVariant("1:997:AT:.", "PASS", "390", "0/0");
         b.setEnd(1010);
         b.setType(NO_VARIATION);
         List<Variant> resolved = new VariantLocalConflictResolver().resolveConflicts(Arrays.asList(a, b));
-        assertEquals(2, resolved.size());
         System.out.println("resolved = " + resolved);
+        assertEquals(2, resolved.size());
     }
 
     @Test
@@ -384,6 +387,47 @@ public class VariantLocalConflictResolverTest {
                 VariantLocalConflictResolver.getMissingRegions(Arrays.asList(new Variant[]{a, b}), indel);
         assertEquals(1, missingRegions.size());
         assertEquals(new ImmutablePair<Integer, Integer>(1001, 1001), missingRegions.get(0));
+    }
+
+
+    @Test
+    public void getMissingRegionsIndelasasd() throws Exception {
+        Variant a = getVariant("1:1000:ATTTT:A,ATTTC", "PASS", "100", "0/0");
+        List<Variant> apply = new VariantNormalizer().apply(Collections.singletonList(a));
+        Variant b = getVariant("1:1002:T:.", "PASS", "100", "0/0");
+        apply.add(b);
+        List<Variant> x = new VariantLocalConflictResolver().resolveConflicts(apply);
+        System.out.println(x);
+    }
+
+    @Test
+    public void getMissingRegionsIndelasasdasdf() throws Exception {
+        Variant a = getVariant("1:1000:ATTTT:AT,ATTTC", "PASS", "100", "0/0");
+        List<Variant> apply = new VariantNormalizer().apply(Collections.singletonList(a));
+        Variant b = getVariant("1:1002:T:.", "PASS", "100", "0/0");
+        apply.add(b);
+        List<Variant> x = new VariantLocalConflictResolver().resolveConflicts(apply);
+        System.out.println(x);
+    }
+
+    @Test
+    public void getMissingRegionsIndelasasdasdfasdf() throws Exception {
+        Variant a = getVariant("1:1000:ATTTT:AT,ATTTC", "PASS", "100", "0/0");
+        List<Variant> apply = new VariantNormalizer().apply(Collections.singletonList(a));
+        Variant b = getVariant("1:1002:T:.", "PASS", "100", "0/0");
+        Variant c = getVariant("1:1004:T:.", "PASS", "100", "0/0");
+        apply.add(b);
+        apply.add(c);
+        List<Variant> x = new VariantLocalConflictResolver().resolveConflicts(apply);
+        System.out.println(x);
+    }
+
+    @Test
+    public void getMissingRegion_LALA() throws Exception {
+        Variant a = getVariant("1:1000:A:C", "PASS", "100", "0/1");
+        List<Variant> b = normalizer.apply(Collections.singletonList(getVariant("1:1001:T:A,C", "PASS", "100", "0/1")));
+        List<Variant> x = new VariantLocalConflictResolver().resolveConflicts(Arrays.asList(a, b.get(0), b.get(1)));
+        System.out.println(x);
     }
 
     @Test

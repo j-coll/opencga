@@ -75,9 +75,92 @@ public class VariantLocalConflictResolver {
         altSorted.addAll(altToVar.keySet());
 
         List<Variant> resolved = new ArrayList<>();
+
+        if (false) {
+
+            List<Set<Alternate>> overlappedAlternateSets = new ArrayList<>();
+            TreeSet<Alternate> otherAlternates = new TreeSet<>();
+            findConflictAlternates(overlappedAlternateSets, otherAlternates, altToVar, varToAlt, altSorted);
+
+            while (!otherAlternates.isEmpty()) {
+                Alternate otherAlternate = otherAlternates.first();
+                Variant variant = altToVar.get(otherAlternate);
+                List<Alternate> mateVariants = varToAlt.get(variant);
+                otherAlternates.removeAll(mateVariants);
+                resolved.add(variant);
+            }
+
+            for (Set<Alternate> overlappedAlternateSet : overlappedAlternateSets) {
+//                System.out.println("overlappedAlternateSet = " + overlappedAlternateSet);
+                Set<Variant> conflictVariants = overlappedAlternateSet.stream().map(altToVar::get).collect(Collectors.toSet());
+                resolved.addAll(
+                        resolve(overlappedAlternateSet, conflictVariants, altToVar, varToAlt));
+            }
+
+        } else if (false) {
+//        List<Set<Alternate>> overlappedAlternates = new ArrayList<>();
+            Set<Alternate> alternates = new HashSet<>();
+//        Alternate previousAlternate = null;
+//            for (Iterator<Alternate> iterator = altSorted.iterator(); iterator.hasNext(); ) {
+//                Alternate alternate = iterator.next();
+
+//        }
         while (!altSorted.isEmpty()) {
             Alternate alternate = altSorted.first();
+
+                boolean overlaps = alternates.isEmpty() || alternates.stream().anyMatch(previousAlternate -> hasConflictOverlap(alternate, previousAlternate));
+                if (overlaps) {
+//                if (alternates == null) {
+//                    alternates = new ArrayList<>();
+//                    alternates.add(previousAlternate);
+//                }
+                    alternates.addAll(varToAlt.get(altToVar.get(alternate)));
+                }
+                if (!overlaps || altSorted.isEmpty()) {
+                    Set<Variant> varConflicts;
+                    if (alternates.size() == 1) {
+                        varConflicts = Collections.singleton(altToVar.get(alternate));
+                    } else {
+                        varConflicts = new HashSet<>();
+                        alternates.forEach(a -> varConflicts.add(altToVar.get(a)));
+                    }
+
+                    if (varConflicts.size() == 1) {
+                        resolved.addAll(varConflicts);
+                    } else {
+//                    overlappedAlternates.add(alternates);
+                        System.out.println("alternates = " + alternates);
+                        Collection<Variant> varResolved = resolve(alternates, varConflicts, altToVar, varToAlt);
+                        resolved.addAll(varResolved);
+
+                        alternates = new HashSet<>();
+                    }
+                }
+            }
+//        while (!altSorted.isEmpty()) {
+//            Alternate alternate = altSorted.first();
+//
+//            if (previousAlternate == null) {
+//                previousAlternate = alternate;
+//            } else if (hasConflictOverlap(alternate, previousAlternate)) {
+//                if (alternates == null) {
+//                    alternates = new ArrayList<>();
+//                    alternates.add(previousAlternate);
+//                }
+//                alternates.add(alternate);
+//            } else {
+//                if (alternates == null) {
+//                    // Without overlappings
+//                } else {
+//                    overlappedAlternates.add(alternates);
+//                    alternates = null;
+//                }
+//            }
+//        }
+        } else while (!altSorted.isEmpty()) {
+            Alternate alternate = altSorted.first();
             Variant variant = altToVar.get(alternate);
+            //Detect alternates with conflicts with the variant of the first alternate
             Set<Alternate> altConflictSet = findConflictAlternates(variant, altSorted, altToVar, varToAlt);
 
             Set<Variant> varConflicts;
@@ -94,6 +177,7 @@ public class VariantLocalConflictResolver {
                 if (!varConflicts.contains(variant)) {
                     throw new IllegalStateException("Variant didn't find itself, but others: " + variant);
                 }
+                // If there are only one variant in conflict, there are no conflict
                 resolved.add(variant);
             } else {
                 Collection<Variant> varResolved = resolve(altConflictSet, varConflicts, altToVar, varToAlt);
@@ -102,6 +186,82 @@ public class VariantLocalConflictResolver {
             altSorted.removeAll(altConflictSet);
         }
         return resolved;
+    }
+
+    public void findConflictAlternates(List<Set<Alternate>> overlappedAlternateSets, TreeSet<Alternate> otherAlternates,
+                                       Map<Alternate, Variant> altToVar, IdentityHashMap<Variant, List<Alternate>> varToAlt,
+                                       NavigableSet<Alternate> altSorted) {
+        Set<Alternate> alternates = new HashSet<>();
+
+        // Group alternates in overlapping sets of alternates
+        for (Iterator<Alternate> iterator = altSorted.iterator(); iterator.hasNext();) {
+            Alternate alternate = iterator.next();
+
+            // Any overlap
+            boolean hasConflictOverlap = !alternates.isEmpty() && alternates.stream().anyMatch(a -> hasConflictOverlap(a, alternate));
+
+            if (hasConflictOverlap) {
+                alternates.add(alternate);
+            }
+            boolean isLast = !iterator.hasNext();
+            // If the current alternate is not overlapping, or is the last alternate, process the previous set
+            if (!hasConflictOverlap || isLast) {
+                if (!alternates.isEmpty()) {
+                    Set<Variant> variantsWithConflicts = alternates.stream().map(altToVar::get).collect(Collectors.toSet());
+                    if (variantsWithConflicts.size() > 1) {
+                        overlappedAlternateSets.add(alternates);
+                    } else {
+                        otherAlternates.addAll(alternates);
+                    }
+                    alternates = new HashSet<>();
+                }
+
+                // If is not overlapping and is the last batch
+                if (!hasConflictOverlap && isLast) {
+                    otherAlternates.add(alternate);
+                } else if (!isLast) {
+                    alternates.add(alternate);
+                }
+            }
+        }
+
+
+        for (int i = 0; i < overlappedAlternateSets.size(); i++) {
+            Set<Alternate> overlappingAlternateSet = overlappedAlternateSets.get(i);
+            List<Alternate> otherAlternatesToAdd = null;
+            for (Alternate alternate : overlappingAlternateSet) {
+                List<Alternate> mateAlternates = varToAlt.get(altToVar.get(alternate));
+                if (mateAlternates.size() > 1) {
+                    for (Alternate mateAlternate : mateAlternates) {
+                        // Check if the mate alternate is part of the set.
+                        // If not, add it after the loop to avoid ConcurrentModificationException
+                        if (!overlappingAlternateSet.contains(mateAlternate)) {
+                            if (otherAlternatesToAdd == null) {
+                                otherAlternatesToAdd = new ArrayList<>();
+                            }
+                            otherAlternatesToAdd.add(mateAlternate);
+
+                            // Remove it from other alternates.
+                            if (!otherAlternates.remove(mateAlternate)) {
+                                // It was not in other alternates.
+                                // The alternate was in other overlapping set. Find it and join both sets.
+                                for (int i1 = i + 1; i1 < overlappedAlternateSets.size(); i1++) {
+                                    Set<Alternate> otherOverlappingAlternateSet = overlappedAlternateSets.get(i1);
+                                    if (otherOverlappingAlternateSet.contains(mateAlternate)) {
+                                        otherAlternatesToAdd.addAll(otherOverlappingAlternateSet);
+                                        overlappedAlternateSets.remove(i1);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Add other mate alternates to this set of alternates
+            if (otherAlternatesToAdd != null) {
+                overlappingAlternateSet.addAll(otherAlternatesToAdd);
+            }
+        }
     }
 
     /**
@@ -213,18 +373,14 @@ public class VariantLocalConflictResolver {
         List<Alternate> alternates = varToAlt.get(variant);
         Collections.sort(alternates);
 
-        altSorted.headSet(alternates.get(alternates.size() - 1), true);
-
-        NavigableSet<Alternate> altConflicts = new TreeSet<>();
-        altConflicts.addAll(altSorted.headSet(alternates.get(alternates.size() - 1), true));
+        NavigableSet<Alternate> altConflicts = new TreeSet<>(altSorted.headSet(alternates.get(alternates.size() - 1), true));
 
         // While there are items in the sorted ALT list
         // OR there are no overlaps anymore
-        NavigableSet<Alternate> remaining = new TreeSet<>();
-        remaining.addAll(altSorted.tailSet(altConflicts.last(), false));
+        NavigableSet<Alternate> remaining = new TreeSet<>(altSorted.tailSet(altConflicts.last(), false));
         while (!remaining.isEmpty()) {
             Alternate q = remaining.first();
-            boolean hasOverlap = altConflicts.stream().filter(a -> hasConflictOverlap(a, q)).findAny().isPresent();
+            boolean hasOverlap = altConflicts.stream().anyMatch(a -> hasConflictOverlap(a, q));
             if (!hasOverlap) {
                 break; // END -> no overlaps.
             }
@@ -293,11 +449,11 @@ public class VariantLocalConflictResolver {
                     List<Pair<Integer, Integer>> pairs = buildRegions(collect);
                     collect.sort(VARIANT_POSITION_COMPARATOR);
                     Variant variant = deepCopy(collect.get(0));
-                    int minPos = pairs.stream().mapToInt(p -> p.getLeft()).min().getAsInt();
+                    int minPos = pairs.stream().mapToInt(Pair::getLeft).min().getAsInt();
                     if (!variant.getStart().equals(minPos)) {
-                        throw new IllegalStateException("Sorting and merging of NO_VARIATOIN regions went wrong: " + query);
+                        throw new IllegalStateException("Sorting and merging of NO_VARIATION regions went wrong: " + query);
                     }
-                    variant.setEnd(pairs.stream().mapToInt(p -> p.getRight()).max().getAsInt());
+                    variant.setEnd(pairs.stream().mapToInt(Pair::getRight).max().getAsInt());
                     variant.setLength((variant.getEnd() - variant.getStart()) + 1);
                     resolved.clear();
                     resolved.add(variant);

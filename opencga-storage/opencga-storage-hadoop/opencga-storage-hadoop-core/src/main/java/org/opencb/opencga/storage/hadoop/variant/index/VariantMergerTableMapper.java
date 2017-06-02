@@ -34,17 +34,19 @@ import org.opencb.biodata.models.variant.avro.AlternateCoordinate;
 import org.opencb.biodata.models.variant.avro.FileEntry;
 import org.opencb.biodata.models.variant.avro.VariantType;
 import org.opencb.biodata.models.variant.protobuf.VariantProto;
+import org.opencb.biodata.models.variant.protobuf.VcfSliceProtos;
 import org.opencb.biodata.tools.variant.converters.proto.VcfRecordProtoToVariantConverter;
 import org.opencb.biodata.tools.variant.merge.VariantMerger;
 import org.opencb.opencga.storage.core.metadata.StudyConfiguration;
 import org.opencb.opencga.storage.core.variant.VariantStorageEngine;
 import org.opencb.opencga.storage.hadoop.variant.GenomeHelper;
 import org.opencb.opencga.storage.hadoop.variant.converters.HBaseToVariantConverter;
+import org.opencb.opencga.storage.hadoop.variant.archive.ArchiveTableHelper;
 import org.opencb.opencga.storage.hadoop.variant.models.protobuf.VariantTableStudyRowsProto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -59,6 +61,11 @@ import static org.opencb.opencga.storage.hadoop.variant.AnalysisTableMapReduceHe
 import static org.opencb.opencga.storage.hadoop.variant.HadoopVariantStorageEngine.*;
 
 /**
+ *
+ * TODO: Split by NEW and OVERLAPPING_NEW.
+ *      NEW_VARIANTS overlap only with NO_VARIATION variants. Don't need to convert to VARIANT or resolve conflicts to fill gaps!
+ *      OVERLAPPING_NEW_VARIANTS don't need to fetch variants from archive. Information is already in _V
+ *
  * @author Matthias Haimel mh719+git@cam.ac.uk
  */
 public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
@@ -77,6 +84,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
             VariantType.INDEL, VariantType.INSERTION, VariantType.DELETION,
             VariantType.MNV, VariantType.MNP);
     private List<String> expectedFormats;
+    private Set<Integer> filesToIndex;
 
     private boolean isParallel() {
         return this.parallel.get();
@@ -99,7 +107,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
 
         boolean collapseDeletions = context.getConfiguration().getBoolean(MERGE_COLLAPSE_DELETIONS, DEFAULT_MERGE_COLLAPSE_DELETIONS);
 
-        Set<Integer> filesToIndex = context.getConfiguration().getStringCollection(VariantStorageEngine.Options.FILE_ID.key())
+        filesToIndex = context.getConfiguration().getStringCollection(VariantStorageEngine.Options.FILE_ID.key())
                 .stream()
                 .map(Integer::valueOf)
                 .collect(Collectors.toSet());
@@ -119,7 +127,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
 
 
         variantMerger = new VariantMerger(collapseDeletions);
-        variantMerger.setStudyId(Integer.toString(getStudyConfiguration().getStudyId()));
+        variantMerger.setStudyId(String.valueOf(getStudyConfiguration().getStudyId()));
         variantMerger.setExpectedFormats(expectedFormats);
         variantMerger.setExpectedSamples(this.getIndexedSamples().keySet());
         // Add all samples which are currently being indexed.
@@ -127,7 +135,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
 
 
         variantMergerSamplesToIndex = new VariantMerger(collapseDeletions);
-        variantMergerSamplesToIndex.setStudyId(Integer.toString(getStudyConfiguration().getStudyId()));
+        variantMergerSamplesToIndex.setStudyId(String.valueOf(getStudyConfiguration().getStudyId()));
         variantMergerSamplesToIndex.setExpectedFormats(expectedFormats);
         variantMergerSamplesToIndex.setExpectedSamples(samplesToIndex);
 
@@ -155,7 +163,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
      *             +---------+----------+
      *             | ARCHIVE | ANALYSIS |
      *  +----------+---------+----------+
-     *  | 1:10:A:T |   DATA  |   ----   |   <= New variant          (1)
+     *  | 1:10:A:T |   DATA  |   ----   |   <= New variant          (1) Requires to fetch data from Archive
      *  +----------+---------+----------+
      *  | 1:20:C:G |   ----  |   DATA   |   <= Missing variant      (2)
      *  +----------+---------+----------+
@@ -170,6 +178,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
         ARCHIVE_TABLE_VARIANTS,
         ARCHIVE_TABLE_SEC_ALT_VARIANTS,
         ANALYSIS_TABLE_VARIANTS,
+        OVERLAPPING_NEW_VARIANTS,
         NEW_VARIANTS,
         MISSING_VARIANTS,
         SAME_VARIANTS
@@ -198,7 +207,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
         ctx.context.getCounter(COUNTER_GROUP_NAME, "VARIANTS_FROM_ARCHIVE").increment(archiveVar.size());
         addStepDuration("1a Unpack and convert input ARCHIVE variants - proto", protoTime.get());
         addStepDuration("1b Unpack and convert input ARCHIVE variants - conflicts", resolveConflictTime.get());
-        addStepDuration("1b Unpack and convert input ARCHIVE variants - covnert", convertTime.get());
+        addStepDuration("1c Unpack and convert input ARCHIVE variants - convert", convertTime.get());
 
         return archiveVar;
     }
@@ -238,6 +247,46 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
         addStepDuration("6a Update OUTPUT table - create put", pair.getLeft());
         addStepDuration("6b Update OUTPUT table - write put", pair.getRight());
         endStep("6 Update OUTPUT table");
+    }
+
+    private void processNewOverlappingVariants(VariantMapReduceContext ctx, List<Variant> overlappingNew, NavigableMap<Integer, List<Variant>> archiveVariantsPositionMap, NavigableMap<Integer, List<Variant>> analysisVariantsPositionMap, List<VariantTableStudyRow> rows) {
+                /* ******** Update Analysis Variants ************** */
+
+        // Check if Archive covers all bases in Analysis
+        // TODO switched off at the moment down to removed variant calls from gVCF files (malformated variants)
+        //        checkArchiveConsistency(ctx.context, ctx.startPos, ctx.nextStartPos, archiveVar, analysisVar);
+//        endStep("4 Check consistency -- skipped");
+
+        final AtomicLong overlap = new AtomicLong(0);
+        final AtomicLong merge = new AtomicLong(0);
+        final AtomicLong submit = new AtomicLong(0);
+
+        // (2) and (3): Same, missing (and overlapping missing) variants
+        logger.info("Merge new overlapping...");
+        processVariants(overlappingNew, newVariant -> {
+            long start = System.nanoTime();
+            ctx.getContext().progress(); // Call process to avoid timeouts
+            Collection<Variant> archiveVariants = buildOverlappingNonRedundantSet(newVariant, archiveVariantsPositionMap);
+            Collection<Variant> analysisVariants = buildOverlappingNonRedundantSet(newVariant, analysisVariantsPositionMap);
+            long mid = System.nanoTime();
+            System.out.println("merge1 " + newVariant.toJson() + "\n\twith " + archiveVariants.stream().map(Variant::toJson).collect(Collectors.joining(" , ", "[", "]")));
+            variantMergerSamplesToIndex.merge(newVariant, archiveVariants);
+            System.out.println("merge2 " + newVariant.toJson() + "\n\twith " + analysisVariants.stream().map(Variant::toJson).collect(Collectors.joining(" , ", "[", "]")));
+            variantMerger.merge(newVariant, analysisVariants);
+            System.out.println("merge3 " + newVariant.toJson());
+            long end = System.nanoTime();
+            overlap.getAndAdd(mid - start);
+            merge.getAndAdd(end - mid);
+        });
+        endStep("5_N Merge new overlapping");
+        addStepDuration("5_Na Merge new overlapping - overlap", overlap.get());
+        addStepDuration("5_Nb Merge new overlapping - merge", merge.get());
+
+        logger.info("Submit ...");
+        Pair<Long, Long> pair = updateOutputTable(ctx.context, overlappingNew, rows, null);
+        endStep("6_N Update OUTPUT table");
+        addStepDuration("6_Na Update OUTPUT table - create put", pair.getLeft());
+        addStepDuration("6_Nb Update OUTPUT table - write put", pair.getRight());
     }
 
     private void processVariants(Collection<Variant> variants, Consumer<Variant> variantConsumer) {
@@ -308,7 +357,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
 
         // with all other gVCF files of same region
         if (!analysisNew.isEmpty()) {
-            fillNewWithIndexedSamples(ctx, analysisNew);
+            fillNewWithIndexedSamples2(ctx, analysisNew);
         }
         // WRITE VALUES
         startStep();
@@ -316,6 +365,105 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
         endStep("10 Update OUTPUT table");
     }
 
+    private void fillNewWithIndexedSamples2(VariantMapReduceContext ctx, Collection<Variant> analysisNew) throws IOException {
+        AtomicLong overlap = new AtomicLong(0);
+        AtomicLong merge = new AtomicLong(0);
+        Set<Integer> coveredPositions = new ConcurrentSkipListSet<>();
+        processVariants(analysisNew, var -> {
+            int min = toPosition(var, true);
+            int max = toPosition(var, false);
+            coveredPositions.addAll(IntStream.range(min, max + 1).boxed().collect(Collectors.toList()));
+        });
+
+        loadFromArchive(ctx.context, ctx.getCurrRowKey(), ctx.fileIds, (fileIds, res) -> {
+            if (null == res || res.isEmpty()) {
+                // FIXME: Add missing?
+                logger.info("No variants found for {} files", fileIds.size());
+                return;
+            }
+//            long startTime = System.nanoTime();
+//            // Uses ForkJoinPool !!!
+//            // only load variants which have overlap.
+//            AtomicLong protoTime = new AtomicLong();
+//            AtomicLong resolveConflictTime = new AtomicLong();
+//            AtomicLong convertTime = new AtomicLong();
+//            AtomicLong discardedVcfRecord = new AtomicLong();
+//            AtomicLong discardedVariant = new AtomicLong();
+
+//            ctx.getContext().getCounter(COUNTER_GROUP_NAME, "OTHER_VARIANTS_FROM_ARCHIVE_DISCARDED_VCF_RECORD")
+//                    .increment(discardedVcfRecord.get());
+//            ctx.getContext().getCounter(COUNTER_GROUP_NAME, "OTHER_VARIANTS_FROM_ARCHIVE_DISCARDED_VARIANT")
+//                    .increment(discardedVariant.get());
+//            addStepDuration("9b.1 Unpack and convert from Archive - proto", protoTime.get());
+//            addStepDuration("9b.2 Unpack and convert from Archive - conflict", resolveConflictTime.get());
+//            addStepDuration("9b.3 Unpack and convert from Archive - convert", convertTime.get());
+//            addStepDuration("9b Unpack and convert from Archive", System.nanoTime() - startTime);
+//            logger.info("Loaded " + archiveOther.size() + " variants for " + fileIds.size() + " files");
+
+            Map<Integer, VcfSliceProtos.VcfSlice> slices = getResultConverter().convert(res);
+            Map<Integer, Integer> iteratorIdx = new HashMap<>(slices.size());
+//            Map<Integer, Iterator<VcfSliceProtos.VcfRecord>> iterators = new HashMap<>(slices.size());
+//            for (Map.Entry<Integer, VcfSliceProtos.VcfSlice> entry : slices.entrySet()) {
+//                Iterator<VcfSliceProtos.VcfRecord> iterator = entry.getValue().getRecordsList().iterator();
+//                iterators.put(entry.getKey(), iterator);
+//            }
+
+            List<Variant> orderedAnalysisNew = new ArrayList<>(analysisNew);
+            orderedAnalysisNew.sort(Comparator.comparing(Variant::getStart).thenComparing(Variant::getEnd));
+            for (Variant variant : orderedAnalysisNew) {
+                ctx.getContext().progress(); // Call process to avoid timeouts
+                for (Integer fileId : fileIds) {
+                    int idx = iteratorIdx.getOrDefault(fileId, 0);
+                    VcfSliceProtos.VcfSlice slice = slices.get(fileId);
+                    VcfSliceProtos.VcfRecord record = slice.getRecords(idx);
+                    int start = VcfRecordProtoToVariantConverter.getStart(record, slice.getPosition());
+                    while (start < variant.getEnd()) {
+                        idx++;
+                        if (slice.getRecordsCount() <= idx) {
+                            break;
+                        }
+                        record = slice.getRecords(idx);
+                        start = VcfRecordProtoToVariantConverter.getStart(record, slice.getPosition());
+                    }
+                    int end = VcfRecordProtoToVariantConverter.getEnd(record, slice.getPosition());
+                    iteratorIdx.put(fileId, idx);
+
+                    Iterator<List<String>> samplesData;
+                    if (variant.overlapWith(variant.getChromosome(), start, end, true)) {
+                        List<String> format = VcfRecordProtoToVariantConverter.getFormat(record, slice.getFields());
+                        samplesData = VcfRecordProtoToVariantConverter.getSamplesData(record, format, slice.getFields()).stream().map(data -> data).iterator();
+                    } else {
+                        samplesData = new Iterator<List<String>>() {
+
+                            private List<String> emptyData = Arrays.asList(".", ".", ".");
+
+                            @Override
+                            public boolean hasNext() {
+                                return true;
+                            }
+
+                            @Override
+                            public List<String> next() {
+                                return emptyData;
+                            }
+                        };
+                    }
+                    for (Integer sampleId : getStudyConfiguration().getSamplesInFiles().get(fileId)) {
+                        String sampleName = getStudyConfiguration().getSampleIds().inverse().get(sampleId);
+                        variant.getStudies().get(0).addSampleData(sampleName, samplesData.next());
+                    }
+
+
+                }
+
+            }
+            logger.info("Merge 2 - overlap {}; merge {}; ns", overlap, merge);
+            addStepDuration("9c Merge NEW with archive slice - overlap", overlap.get());
+            addStepDuration("9d Merge NEW with archive slice - merge", merge.get());
+            ctx.getContext().progress(); // Call process to avoid timeouts
+        });
+
+    }
     private void fillNewWithIndexedSamples(VariantMapReduceContext ctx, Collection<Variant> analysisNew) throws IOException {
         AtomicLong overlap = new AtomicLong(0);
         AtomicLong merge = new AtomicLong(0);
@@ -426,35 +574,61 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
         List<Variant> archiveVar = parseArchiveVariants(ctx);
         endStep("1 Unpack and convert input ARCHIVE variants");
 
-        logger.info("Index ...");
-        NavigableMap<Integer, List<Variant>> varPosRegister = indexAlts(archiveVar, (int) ctx.startPos, (int) ctx.nextStartPos);
-        endStep("2 Index input ARCHIVE variants");
-
         logger.info("Parse ...");
         List<Variant> analysisVar = parseCurrentVariantsRegion(ctx);
         ctx.getContext().getCounter(COUNTER_GROUP_NAME, "VARIANTS_FROM_ANALYSIS").increment(analysisVar.size());
-        endStep("3 Unpack and convert input ANALYSIS variants (" + GenomeHelper.VARIANT_COLUMN_PREFIX + ')');
+        endStep("2 Unpack and convert input ANALYSIS variants (" + GenomeHelper.VARIANT_COLUMN_PREFIX + ')');
+
+        logger.info("Index ...");
+        NavigableMap<Integer, List<Variant>> archiveVariantsPositionMap = indexAlts(archiveVar, (int) ctx.startPos, (int) ctx.nextStartPos);
+        NavigableMap<Integer, List<Variant>> analysisVariantsPositionMap = indexAlts(analysisVar, (int) ctx.startPos, (int) ctx.nextStartPos);
+        endStep("3 Index variant position");
 
         logger.info("Filter ...");
         List<Variant> archiveTarget = filterVariantsByType(archiveVar.stream()).collect(Collectors.toList());
-        endStep("7a Filter archive variants by target");
+        endStep("4 Filter archive variants by target");
         ctx.context.getCounter(COUNTER_GROUP_NAME, "VARIANTS_FROM_ARCHIVE_TARGET").increment(archiveTarget.size());
-        logger.debug("Loaded current: {}; archive: {}; target: {}", analysisVar.size(), archiveVar.size(), archiveTarget.size());
-        // Variants of target type
-        Set<Variant> analysisNew = getNewVariantsAsTemplates(ctx, analysisVar, archiveTarget, (int) ctx.startPos, (int) ctx.nextStartPos);
-        endStep("7b Create NEW variants");
 
-        /* Update and submit Analysis missing and same Variants */
-        processAnalysisVariants(ctx, analysisVar, varPosRegister, rows);
+//        logger.debug("Loaded current: {}; archive: {}; target: {}", analysisVar.size(), archiveVar.size(), archiveTarget.size());
+        Set<Variant> analysisNew = getNewVariantsAsTemplates(ctx, analysisVar, archiveTarget);
+        endStep("4 Filter and create NEW variants");
+
+//        List<Variant> overlappingNew = getNewOverlappingVariants(ctx, analysisNew, analysisVariantsPositionMap);
+//
+//        /* Update and submit Analysis missing, missingOverlapping, newOverlapping and same Variants */
+//        processNewOverlappingVariants(ctx, overlappingNew, archiveVariantsPositionMap, analysisVariantsPositionMap, rows);
+
+        /* Update and submit Analysis missing, missingOverlapping, newOverlapping and same Variants */
+        processAnalysisVariants(ctx, analysisVar, archiveVariantsPositionMap, rows);
 
         /* Update and submit Analysis new Variants */
-        processNewVariants(ctx, analysisNew, varPosRegister, rows);
+        processNewVariants(ctx, analysisNew, archiveVariantsPositionMap, rows);
 
         // Checkpoint -> update archive table!!!
         startStep();
         updateArchiveTable(ctx.getCurrRowKey(), ctx.context, rows);
         endStep("11 Update INPUT table");
         logger.info("Done merging");
+    }
+
+    private List<Variant> getNewOverlappingVariants(VariantMapReduceContext ctx, Set<Variant> analysisNew, NavigableMap<Integer, List<Variant>> analysisVariantsPositionMap) {
+
+        List<Variant> overlappingNew = new ArrayList<>();
+        for (Iterator<Variant> iterator = analysisNew.iterator(); iterator.hasNext(); ) {
+            Variant newVariant = iterator.next();
+            for (int i = newVariant.getStart(); i <= newVariant.getEnd(); i++) {
+                if (analysisVariantsPositionMap.containsKey(i)) {
+                    overlappingNew.add(newVariant);
+                    iterator.remove();
+                    break;
+                }
+            }
+        }
+
+        ctx.context.getCounter(OpenCGAVariantTableCounters.OVERLAPPING_NEW_VARIANTS).increment(overlappingNew.size());
+        ctx.context.getCounter(OpenCGAVariantTableCounters.NEW_VARIANTS).increment(-overlappingNew.size());
+
+        return overlappingNew;
     }
 
     private NavigableMap<Integer, List<Variant>> indexAlts(List<Variant> variants, int startPos, int nextStartPos) {
@@ -507,17 +681,24 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
         if (isParallel()) {
             variants.parallelStream().forEach(variantConsumer);
         } else {
-            variants.stream().forEach(variantConsumer);
+            variants.forEach(variantConsumer);
         }
     }
 
-    private Set<Variant> getNewVariantsAsTemplates(VariantMapReduceContext ctx, List<Variant> analysisVar, List<Variant> archiveTarget,
-                                                   int startPos, int nextStartPos) {
+    private Set<Variant> getNewVariantsAsTemplates(VariantMapReduceContext ctx, List<Variant> analysisVar, List<Variant> archiveTarget) {
+        int startPos = (int) ctx.startPos;
+        int nextStartPos = (int) ctx.nextStartPos;
         String studyId = Integer.toString(getStudyConfiguration().getStudyId());
         // (1) NEW variants (only create the position, no filling yet)
-        Set<String> analysisVarSet = analysisVar.stream().map(Variant::toString).collect(Collectors.toSet());
-        analysisVarSet.addAll(analysisVar.stream().flatMap(v -> v.getStudy(studyId).getSecondaryAlternates().stream())
-                .map(a -> toVariantString(a)).collect(Collectors.toSet()));
+
+        Set<String> analysisVarSet = analysisVar.stream()
+                .map(Variant::toString)
+                .collect(Collectors.toSet());
+        analysisVarSet.addAll(analysisVar
+                .stream()
+                .flatMap(v -> v.getStudy(studyId).getSecondaryAlternates().stream())
+                .map(this::toVariantString)
+                .collect(Collectors.toSet()));
         Set<Variant> analysisNew = new ConcurrentSkipListSet<>(); // for later parallel processing
         Set<String> archiveTargetSet = new HashSet<>();
         Set<String> secAltTargetSet = new HashSet<>();
@@ -537,8 +718,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
                 // Filled with Sample information later (see 2)
                 StudyEntry se = tar.getStudy(studyId);
                 if (null == se) {
-                    throw new IllegalStateException(String.format(
-                            "Study Entry for study %s of target variant is null: %s",  studyId, tar));
+                    throw new IllegalStateException("Study Entry for study " + studyId + " of target variant is null: " + tar);
                 }
                 Variant tarNew = variantMerger.createFromTemplate(tar);
                 analysisNew.add(tarNew);
@@ -611,7 +791,7 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
         }
     }
 
-    private Collection<Variant> buildOverlappingNonRedundantSet(Variant var, final NavigableMap<Integer, List<Variant>> archiveVar) {
+    private Set<Variant> buildOverlappingNonRedundantSet(Variant var, final NavigableMap<Integer, List<Variant>> archiveVar) {
         int min = toPosition(var, true);
         int max = toPosition(var, false);
         Map<Variant, Object> vars = new IdentityHashMap<>();
@@ -638,7 +818,8 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
                                           BiConsumer<Set<Integer>, Result> merge) throws IOException {
         // Extract File IDs to search through
         LinkedHashSet<Integer> indexedFiles = getStudyConfiguration().getIndexedFiles();
-        Set<String> archiveFileIds = indexedFiles.stream().filter(k -> !currFileIds.contains(k)).map(s -> s.toString())
+        Set<Integer> archiveFileIds = indexedFiles.stream()
+                .filter(k -> !currFileIds.contains(k))
                 .collect(Collectors.toSet());
         if (archiveFileIds.isEmpty()) {
             logger.info("No files found to search for in archive table");
@@ -649,23 +830,24 @@ public class VariantMergerTableMapper extends AbstractArchiveTableMapper {
         while (!archiveFileIds.isEmpty()) {
             Long startTime = System.nanoTime();
             // create batch
-            Set<String> batch = new HashSet<>();
-            for (String e : archiveFileIds) {
-                if (batch.size() < this.archiveBatchSize) {
-                    batch.add(e);
+            Set<String> batchColumns = new HashSet<>();
+            Set<Integer> batchIds = new HashSet<>();
+            for (Integer fileId : archiveFileIds) {
+                if (batchColumns.size() < this.archiveBatchSize) {
+                    batchColumns.add(ArchiveTableHelper.getColumnName(fileId));
+                    batchIds.add(fileId);
                 } else {
                     break;
                 }
             }
-            archiveFileIds.removeAll(batch); // remove ids
-            logger.info("Search archive for " + batch.size() + " files with " + archiveFileIds.size()  + " remaining ... ");
+            archiveFileIds.removeAll(batchIds); // remove ids
+            logger.info("Search archive for " + batchColumns.size() + " files with " + archiveFileIds.size()  + " remaining ... ");
             if (logger.isDebugEnabled()) {
-                logger.debug("Add files to search in archive: " + StringUtils.join(batch, ','));
+                logger.debug("Add files to search in archive: " + StringUtils.join(batchColumns, ','));
             }
             Get get = new Get(rowKey);
             byte[] cf = getHelper().getColumnFamily();
-            batch.forEach(e -> get.addColumn(cf, Bytes.toBytes(e)));
-            Set<Integer> batchIds = batch.stream().map(e -> Integer.valueOf(e)).collect(Collectors.toSet());
+            batchColumns.forEach(c -> get.addColumn(cf, Bytes.toBytes(c)));
             Result res = getHBaseManager().act(getHelper().getArchiveTable(), table -> table.get(get));
             addStepDuration("9a Load archive slice from hbase", System.nanoTime() - startTime);
             if (res.isEmpty()) {

@@ -31,6 +31,7 @@ import org.opencb.biodata.tools.variant.converters.proto.VcfSliceToVariantListCo
 import org.opencb.opencga.storage.core.metadata.StudyConfiguration;
 import org.opencb.opencga.storage.hadoop.variant.GenomeHelper;
 import org.opencb.opencga.storage.hadoop.variant.archive.mr.VariantLocalConflictResolver;
+import org.opencb.opencga.storage.hadoop.variant.index.VariantTableStudyRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,6 +87,24 @@ public class ArchiveResultToVariantConverter {
         } else {
             return iEnd > v.getStart() && iStart < v.getEnd();
         }
+    }
+
+    public Map<Integer, VcfSlice> convert(Result value) throws IllegalStateException {
+        Stream<Cell> cellStream = Arrays.stream(value.rawCells())
+                .filter(c -> Bytes.equals(CellUtil.cloneFamily(c), columnFamily))
+                .filter(c -> !Bytes.startsWith(CellUtil.cloneQualifier(c), GenomeHelper.VARIANT_COLUMN_B_PREFIX));
+        if (this.isParallel()) { // if parallel
+            cellStream = cellStream.parallel();
+        }
+        return cellStream.collect(Collectors.toMap(
+                cell -> ArchiveTableHelper.getFileIdFromColumnName(CellUtil.cloneQualifier(cell)),
+                cell -> {
+                    try {
+                        return VcfSlice.parseFrom(CellUtil.cloneValue(cell));
+                    } catch (InvalidProtocolBufferException e) {
+                        throw new IllegalStateException(e);
+                    }
+                }));
     }
 
     public List<Variant> convert(Result value, boolean resolveConflict) throws IllegalStateException {

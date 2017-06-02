@@ -246,9 +246,9 @@ public class VariantHadoopDBWriterTest extends VariantStorageBaseTest implements
 
     public static List<Variant> createFile1Variants(String chromosome, Integer fileId, Integer studyId) {
         List<Variant> variants = new LinkedList<>();
-        variants.add(newVariant(chromosome, 999, 999, "A", "C", fileId, studyId));
-        variants.add(newVariant(chromosome, 1000, 1000, "A", "C", fileId, studyId));
-        variants.add(newVariant(chromosome, 1002, 1002, "A", "C", fileId, studyId));
+        variants.add(newVariant(chromosome, 999, 999, "A", "C", fileId, studyId, "PASS_" + fileId));
+        variants.add(newVariant(chromosome, 1000, 1000, "A", "C", fileId, studyId, "PASS_" + fileId));
+        variants.add(newVariant(chromosome, 1002, 1002, "A", "C", fileId, studyId, "PASS_" + fileId));
         return variants;
     }
 
@@ -258,18 +258,18 @@ public class VariantHadoopDBWriterTest extends VariantStorageBaseTest implements
 
     public static List<Variant> createFile2Variants(String chromosome, Integer fileId, Integer studyId) {
         List<Variant> variants = new LinkedList<>();
-        variants.add(newVariant(chromosome, 999, 999, "A", "C", fileId, studyId));
-        variants.add(newVariant(chromosome, 1000, 1000, "A", "T", fileId, studyId));
-        variants.add(newVariant(chromosome, 1002, 1002, "A", "C", fileId, studyId));
+        variants.add(newVariant(chromosome, 999, 999, "A", "C", fileId, studyId, "PASS_" + fileId));
+        variants.add(newVariant(chromosome, 1000, 1000, "A", "T", fileId, studyId, "PASS_" + fileId));
+        variants.add(newVariant(chromosome, 1002, 1002, "A", "C", fileId, studyId, "PASS_" + fileId));
         return variants;
     }
 
-    public static Variant newVariant(String chromosome, int start, int end, String reference, String alternate, Integer fileId, Integer studyId) {
+    public static Variant newVariant(String chromosome, int start, int end, String reference, String alternate, Integer fileId, Integer studyId, String filter) {
         Variant variant;
         StudyEntry sourceEntry;
         variant = new Variant(chromosome, start, end, reference, alternate);
         sourceEntry = new StudyEntry(fileId.toString(), studyId.toString());
-        sourceEntry.setFiles(Collections.singletonList(new FileEntry(fileId.toString(), null, Collections.singletonMap(StudyEntry.FILTER, "PASS"))));
+        sourceEntry.setFiles(Collections.singletonList(new FileEntry(fileId.toString(), null, Collections.singletonMap(StudyEntry.FILTER, filter))));
         variant.addStudyEntry(sourceEntry);
 
         int pad = (fileId - 1) * NUM_SAMPLES;
