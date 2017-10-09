@@ -40,10 +40,10 @@ import org.opencb.opencga.catalog.exceptions.CatalogAuthorizationException;
 import org.opencb.opencga.catalog.exceptions.CatalogException;
 import org.opencb.opencga.catalog.managers.AbstractManager;
 import org.opencb.opencga.catalog.managers.CatalogManager;
-import org.opencb.opencga.core.models.acls.AclParams;
 import org.opencb.opencga.core.common.Config;
 import org.opencb.opencga.core.config.Configuration;
 import org.opencb.opencga.core.exception.VersionException;
+import org.opencb.opencga.core.models.acls.AclParams;
 import org.opencb.opencga.storage.core.StorageEngineFactory;
 import org.opencb.opencga.storage.core.alignment.json.AlignmentDifferenceJsonMixin;
 import org.opencb.opencga.storage.core.config.StorageConfiguration;
@@ -67,6 +67,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 @ApplicationPath("/")
 @Path("/{version}")
@@ -112,7 +115,10 @@ public class OpenCGAWSServer {
     protected static Logger logger; // = LoggerFactory.getLogger(this.getClass());
 
 
-    protected static AtomicBoolean initialized;
+    protected static final AtomicBoolean initializing;
+    protected static final ReentrantLock initializationLock = new ReentrantLock();
+    protected static final AtomicBoolean initialized;
+    private static final AtomicReference<Exception> initializationException;
 
     protected static Configuration configuration;
     protected static CatalogManager catalogManager;
@@ -126,6 +132,8 @@ public class OpenCGAWSServer {
 
     static {
         initialized = new AtomicBoolean(false);
+        initializing = new AtomicBoolean(false);
+        initializationException = new AtomicReference<>();
 
         jsonObjectMapper = new ObjectMapper();
         jsonObjectMapper.addMixIn(GenericRecord.class, GenericRecordAvroJsonMixin.class);
@@ -159,12 +167,26 @@ public class OpenCGAWSServer {
 
         // This is only executed the first time to initialize configuration and some variables
         if (initialized.compareAndSet(false, true)) {
-            init();
+            try {
+                initializing.set(true);
+                init();
+            } finally {
+                initializing.set(false);
+                initializing.notifyAll();
+            }
         }
 
-        if (catalogManager == null) {
+        try {
+            while (initializing.get()) {
+                initializing.wait(100);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        if (initializationException.get() != null) {
             throw new IllegalStateException("OpenCGA was not properly initialized. Please, check if the configuration files are reachable "
-                    + "or properly defined.");
+                    + "or properly defined.", initializationException.get());
         }
 
         try {
@@ -250,9 +272,11 @@ public class OpenCGAWSServer {
                     .load(new FileInputStream(new File(configDir.toFile().getAbsolutePath() + "/storage-configuration.yml")));
             storageEngineFactory = StorageEngineFactory.get(storageConfiguration);
             variantManager = new VariantStorageManager(catalogManager, storageEngineFactory);
-        } catch (IOException e) {
-            e.printStackTrace();
         } catch (CatalogException e) {
+            logger.error("Error while creating CatalogManager", e);
+            initializationException.set(e);
+        } catch (Exception e) {
+            initializationException.set(e);
             logger.error("Error while creating CatalogManager", e);
         }
     }
