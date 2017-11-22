@@ -7,7 +7,6 @@ import org.apache.hadoop.hbase.filter.RowFilter;
 import org.apache.hadoop.hbase.filter.SubstringComparator;
 import org.apache.hadoop.mapreduce.Job;
 import org.opencb.opencga.storage.hadoop.variant.AbstractAnalysisTableDriver;
-import org.opencb.opencga.storage.hadoop.variant.gaps.FillGapsDriver;
 import org.opencb.opencga.storage.hadoop.variant.mr.VariantMapReduceUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +25,7 @@ public class VariantStatsDriver extends AbstractAnalysisTableDriver {
     private static final String STATS_OPERATION_NAME = "stats";
 
     private Collection<Integer> cohorts;
-    private final Logger logger = LoggerFactory.getLogger(VariantStatsDriver.class);
+    private static final Logger LOG = LoggerFactory.getLogger(VariantStatsDriver.class);
 
     public VariantStatsDriver() {
     }
@@ -89,9 +88,9 @@ public class VariantStatsDriver extends AbstractAnalysisTableDriver {
 
     public static void main(String[] args) throws Exception {
         try {
-            System.exit(new FillGapsDriver().privateMain(args));
+            System.exit(new VariantStatsDriver().privateMain(args));
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.error("Error executing " + VariantStatsDriver.class, e);
             System.exit(1);
         }
     }
