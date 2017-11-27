@@ -14,9 +14,8 @@ import java.util.function.Function;
  *
  * @author Jacobo Coll &lt;jacobo167@gmail.com&gt;
  */
-public abstract class AbstractVariantsTableInputFormat<KEYIN, VALUEIN, T> extends InputFormat<KEYIN, Variant> {
+public abstract class AbstractVariantsTableInputFormat<KEYIN, VALUEIN> extends InputFormat<KEYIN, Variant> {
 
-    protected HBaseToVariantConverter<T> converter;
     protected InputFormat<KEYIN, VALUEIN> inputFormat;
 
     @Override
@@ -28,10 +27,6 @@ public abstract class AbstractVariantsTableInputFormat<KEYIN, VALUEIN, T> extend
     }
 
     protected abstract void init(Configuration configuration) throws IOException;
-
-    protected void initConverter(HBaseToVariantConverter<T> converter, Configuration configuration) {
-        this.converter = converter.configure(configuration);
-    }
 
     protected static class RecordReaderTransform<KEYIN, VALUEIN, VALUEOUT> extends RecordReader<KEYIN, VALUEOUT> {
 

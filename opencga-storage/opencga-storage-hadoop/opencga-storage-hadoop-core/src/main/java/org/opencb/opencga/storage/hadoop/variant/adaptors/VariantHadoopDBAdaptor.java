@@ -16,12 +16,15 @@
 
 package org.opencb.opencga.storage.hadoop.variant.adaptors;
 
+import com.google.common.base.Throwables;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.phoenix.compile.QueryPlan;
+import org.apache.phoenix.jdbc.PhoenixStatement;
 import org.apache.phoenix.util.SchemaUtil;
 import org.opencb.biodata.models.core.Region;
 import org.opencb.biodata.models.variant.Variant;
@@ -68,6 +71,7 @@ import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.opencb.opencga.storage.core.variant.adaptors.VariantQueryParam.*;
 import static org.opencb.opencga.storage.core.variant.adaptors.VariantQueryUtils.*;
@@ -369,7 +373,27 @@ public class VariantHadoopDBAdaptor implements VariantDBAdaptor {
             logger.debug("Creating " + VariantHBaseScanIterator.class.getSimpleName() + " iterator");
             SelectVariantElements selectElements = VariantQueryUtils.parseSelectElements(query, options, studyConfigurationManager.get());
             Scan scan = hbaseQueryParser.parseQuery(selectElements, query, options);
+
             try {
+
+//                VariantSqlQueryParser.VariantPhoenixSQLQuery phoenixQuery = queryParser.parse(query, options);
+//                String sql = phoenixQuery.getSql();
+//                Statement statement = getJdbcConnection().createStatement(); // Statemnet closed by iterator
+//                PhoenixStatement pstmt = statement.unwrap(PhoenixStatement.class);
+//                QueryPlan queryPlan = pstmt.optimizeQuery(sql);
+//                Scan scan = queryPlan.getContext().getScan();
+//                logger.info(" -------------------------------- ");
+//                logger.info("StartRow = " + Bytes.toStringBinary(scan.getStartRow()));
+//                logger.info("StopRow = " + Bytes.toStringBinary(scan.getStopRow()));
+//                logger.info("columns = " + scan.getFamilyMap().get(
+//                        genomeHelper.getColumnFamily()).stream().map(Bytes::toString).collect(Collectors.joining(",")));
+//                logger.info("MaxResultSize = " + scan.getMaxResultSize());
+//                logger.info("Filters = " + scan.getFilter());
+//                logger.info("Filters = " + scan.getFilter().getClass());
+//                logger.info("Batch = " + scan.getBatch());
+//                logger.info(" -------------------------------- ");
+
+
                 Table table = getConnection().getTable(TableName.valueOf(variantTable));
                 ResultScanner resScan = table.getScanner(scan);
                 String unknownGenotype = null;
@@ -379,8 +403,8 @@ public class VariantHadoopDBAdaptor implements VariantDBAdaptor {
                 List<String> formats = getIncludeFormats(query);
                 return new VariantHBaseScanIterator(resScan, genomeHelper, studyConfigurationManager.get(), options,
                         unknownGenotype, formats, selectElements);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            } catch (Exception e) {
+                throw Throwables.propagate(e);
             }
         } else {
 
@@ -397,6 +421,20 @@ public class VariantHadoopDBAdaptor implements VariantDBAdaptor {
                 }
 
                 Statement statement = getJdbcConnection().createStatement(); // Statemnet closed by iterator
+                PhoenixStatement pstmt = statement.unwrap(PhoenixStatement.class);
+                QueryPlan queryPlan = pstmt.optimizeQuery(sql);
+                Scan scan = queryPlan.getContext().getScan();
+                logger.info(" -------------------------------- ");
+                logger.info("StartRow = " + Bytes.toStringBinary(scan.getStartRow()));
+                logger.info("StopRow = " + Bytes.toStringBinary(scan.getStopRow()));
+                logger.info("columns = " + scan.getFamilyMap().get(
+                        genomeHelper.getColumnFamily()).stream().map(Bytes::toString).collect(Collectors.joining(",")));
+                logger.info("MaxResultSize = " + scan.getMaxResultSize());
+                logger.info("Filters = " + scan.getFilter());
+                logger.info("Filters = " + scan.getFilter().getClass());
+                logger.info("Batch = " + scan.getBatch());
+                logger.info(" -------------------------------- ");
+
                 statement.setFetchSize(options.getInt("batchSize", -1));
                 ResultSet resultSet = statement.executeQuery(sql); // RS closed by iterator
                 List<String> formats = getIncludeFormats(query);

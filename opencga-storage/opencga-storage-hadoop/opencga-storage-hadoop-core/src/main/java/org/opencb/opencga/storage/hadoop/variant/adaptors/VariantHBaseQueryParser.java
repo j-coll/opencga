@@ -18,6 +18,7 @@ package org.opencb.opencga.storage.hadoop.variant.adaptors;
 
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.*;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -42,9 +43,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.opencb.opencga.storage.core.variant.adaptors.VariantQueryParam.*;
-import static org.opencb.opencga.storage.core.variant.adaptors.VariantQueryUtils.isValidParam;
-import static org.opencb.opencga.storage.core.variant.adaptors.VariantQueryUtils.validParams;
+import static org.opencb.opencga.storage.core.variant.adaptors.VariantQueryUtils.*;
 import static org.opencb.opencga.storage.hadoop.variant.index.phoenix.VariantPhoenixHelper.VariantColumn.*;
+import static org.opencb.opencga.storage.hadoop.variant.index.phoenix.VariantPhoenixHelper.buildFileColumnKey;
 
 /**
  * Created on 07/07/17.
@@ -150,15 +151,7 @@ public class VariantHBaseQueryParser {
 //                byte[] annotationColumn = VariantPhoenixHelper.VariantColumn.FULL_ANNOTATION.bytes();
                 byte[] annotationColumn = VariantPhoenixHelper.VariantColumn.SO.bytes();
 
-                // Filter : SKIP QualifierFilter(!=, <COLUMN>)
-                // Skip rows where NOT ALL cells ( has QualifierName != <COLUMN> )
-                // == Get rows where ALL cells (has QualifierName != <COLUMN>)
-                // == Get rows where <COLUMN> is missing
-                filters.addFilter(new SkipFilter(new QualifierFilter(
-                        CompareFilter.CompareOp.NOT_EQUAL, new BinaryComparator(annotationColumn))));
-//                filters.addFilter(new SkipFilter(new SingleColumnValueFilter(
-//                        genomeHelper.getColumnFamily(), annotationColumn,
-//                        CompareFilter.CompareOp.EQUAL, new BinaryComparator(new byte[]{}))));
+                filters.addFilter(missingColumnFilter(annotationColumn));
                 if (!selectElements.getFields().contains(VariantField.ANNOTATION)) {
                     scan.addColumn(genomeHelper.getColumnFamily(), annotationColumn);
                 }
@@ -202,6 +195,19 @@ public class VariantHBaseQueryParser {
             });
         }
 
+        if (isValidParam(query, FILES)) {
+            String value = query.getString(FILES.key());
+            VariantQueryUtils.QueryOperation operation = checkOperator(value);
+            List<String> values = splitValue(value, operation);
+
+
+            for (Iterator<String> iterator = values.iterator(); iterator.hasNext(); ) {
+                String file = iterator.next();
+                Pair<Integer, Integer> fileIdPair = studyConfigurationManager.getFileIdPair(file, false, null);
+                filters.addFilter(existingColumnFilter(buildFileColumnKey(fileIdPair.getKey(), fileIdPair.getValue())));
+            }
+        }
+
         if (selectElements.getFields().contains(VariantField.ANNOTATION)) {
             scan.addColumn(genomeHelper.getColumnFamily(), FULL_ANNOTATION.bytes());
         }
@@ -232,6 +238,29 @@ public class VariantHBaseQueryParser {
         logger.info("Filters = " + scan.getFilter());
         logger.info("Batch = " + scan.getBatch());
         return scan;
+    }
+
+    /**
+     * Filter : SKIP QualifierFilter(!=, {COLUMN})
+     * Skip rows where NOT ALL cells ( has QualifierName != {COLUMN} )
+     * == Get rows where ALL cells (has QualifierName != {COLUMN})
+     * == Get rows where {COLUMN} is missing
+     * @param column Column
+     * @return Filter
+     */
+    public Filter missingColumnFilter(byte[] column) {
+
+      //filters.addFilter(new SkipFilter(new SingleColumnValueFilter(
+      //        genomeHelper.getColumnFamily(), annotationColumn,
+      //        CompareFilter.CompareOp.EQUAL, new BinaryComparator(new byte[]{}))));
+
+        return new SkipFilter(new QualifierFilter(
+                CompareFilter.CompareOp.NOT_EQUAL, new BinaryComparator(column)));
+    }
+
+    public Filter existingColumnFilter(byte[] column) {
+        return new SingleColumnValueFilter(genomeHelper.getColumnFamily(), column,
+                CompareFilter.CompareOp.NOT_EQUAL, new NullComparator());
     }
 
     private List<Region> getRegions(Query query) {

@@ -4,6 +4,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.mapreduce.Job;
+import org.opencb.biodata.models.variant.StudyEntry;
 import org.opencb.biodata.models.variant.Variant;
 import org.opencb.commons.datastore.core.ObjectMap;
 import org.opencb.opencga.storage.core.metadata.StudyConfiguration;
@@ -12,7 +13,6 @@ import org.opencb.opencga.storage.core.variant.stats.VariantStatisticsCalculator
 import org.opencb.opencga.storage.core.variant.stats.VariantStatsWrapper;
 import org.opencb.opencga.storage.hadoop.variant.converters.stats.VariantStatsToHBaseConverter;
 import org.opencb.opencga.storage.hadoop.variant.index.VariantTableHelper;
-import org.opencb.opencga.storage.hadoop.variant.mr.AnalysisTableMapReduceHelper;
 import org.opencb.opencga.storage.hadoop.variant.mr.VariantMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+import static org.opencb.opencga.storage.hadoop.variant.mr.AnalysisTableMapReduceHelper.COUNTER_GROUP_NAME;
 
 /**
  * Created on 14/11/17.
@@ -67,19 +69,26 @@ public class VariantStatsMapper extends VariantMapper<ImmutableBytesWritable, Pu
     protected void map(Object key, Variant variant, Context context) throws IOException, InterruptedException {
         try {
 
+            context.getCounter(COUNTER_GROUP_NAME, "variants").increment(1);
+
             List<VariantStatsWrapper> variantStatsWrappers = calculator.calculateBatch(Collections.singletonList(variant), study, samples);
             if (variantStatsWrappers.isEmpty()) {
+                String studies = variant.getStudies().stream().map(StudyEntry::getStudyId).collect(Collectors.joining("_"));
+
+                context.getCounter(COUNTER_GROUP_NAME, "stats.study."+study).increment(1);
+                context.getCounter(COUNTER_GROUP_NAME, "stats.found_study."+studies).increment(1);
+                context.getCounter(COUNTER_GROUP_NAME, "stats.found_study_num."+variant.getStudies().size()).increment(1);
+
                 return;
             }
             VariantStatsWrapper stats = variantStatsWrappers.get(0);
 
-            context.getCounter(AnalysisTableMapReduceHelper.COUNTER_GROUP_NAME, "variants").increment(1);
 
             Put put = converter.convert(stats);
             if (put == null) {
-                System.out.println("PUT NULL FOR VARIANT " + variant);
+                context.getCounter(COUNTER_GROUP_NAME, "stats.put.null").increment(1);
             } else {
-                context.getCounter(AnalysisTableMapReduceHelper.COUNTER_GROUP_NAME, "stats.put").increment(1);
+                context.getCounter(COUNTER_GROUP_NAME, "stats.put").increment(1);
                 context.write(new ImmutableBytesWritable(helper.getAnalysisTable()), put);
             }
         } catch (Exception e) {
@@ -93,7 +102,7 @@ public class VariantStatsMapper extends VariantMapper<ImmutableBytesWritable, Pu
         super.cleanup(context);
         if (calculator.getSkippedFiles() > 0) {
             logger.warn("Non calculated variant stats: " + calculator.getSkippedFiles());
-            context.getCounter(AnalysisTableMapReduceHelper.COUNTER_GROUP_NAME, "stats.skipped").increment(calculator.getSkippedFiles());
+            context.getCounter(COUNTER_GROUP_NAME, "stats.skipped").increment(calculator.getSkippedFiles());
         }
     }
 
