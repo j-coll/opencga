@@ -157,7 +157,7 @@ public class VariantFileIndexerStorageOperation extends StorageOperation {
         }
 
         // Update Catalog from the study configuration BEFORE executing the index and fetching files from Catalog
-        updateCatalogFromStudyConfiguration(sessionId, studyIdByInputFileId, dataStore);
+//        updateCatalogFromStudyConfiguration(sessionId, studyIdByInputFileId, dataStore);
 
         List<File> inputFiles = new ArrayList<>();
 //        for (Long fileIdLong : fileIds) {
@@ -255,7 +255,7 @@ public class VariantFileIndexerStorageOperation extends StorageOperation {
 
         // Update study configuration BEFORE executing the index
         List<Long> fileIdsToIndex = filesToIndex.stream().map(File::getId).collect(Collectors.toList());
-        updateStudyConfigurationFromCatalog(sessionId, studyIdByInputFileId, dataStore, fileIdsToIndex);
+//        updateStudyConfigurationFromCatalog(sessionId, studyIdByInputFileId, dataStore, fileIdsToIndex);
 
         String prevDefaultCohortStatus = Cohort.CohortStatus.NONE;
         if (step.equals(Type.INDEX) || step.equals(Type.LOAD)) {
@@ -312,7 +312,7 @@ public class VariantFileIndexerStorageOperation extends StorageOperation {
             if (calculateStats && exception != null) {
                 updateDefaultCohortStatus(study, prevDefaultCohortStatus, sessionId);
             }
-            updateStudyConfiguration(sessionId, study.getId(), dataStore);
+//            updateStudyConfiguration(sessionId, study.getId(), dataStore);
         }
 
         if (exception == null) {

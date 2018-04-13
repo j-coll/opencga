@@ -91,9 +91,6 @@ public class MongoDBVariantDirectConverter implements Task<Variant, Pair<ListMul
 
         protected MongoDBOperations processVariants(List<Variant> variants, MongoDBOperations mongoDBOps) {
             for (Variant variant : variants) {
-                if (MongoDBVariantStoragePipeline.SKIPPED_VARIANTS.contains(variant.getType())) {
-                    continue;
-                }
                 Document stageDocument = STAGE_TO_VARIANT_CONVERTER.convertToStorageType(variant);
                 stageDocument.append(studyIdStr, new Document(fileIdStr, Collections.singletonList(variant)));
                 processVariant(stageDocument, variant, mongoDBOps);

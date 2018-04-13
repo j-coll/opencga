@@ -481,7 +481,7 @@ public class MongoDBVariantMerger implements ParallelTaskRunner.Task<Document, M
                 } else if (file instanceof Variant) {
                     variant = ((Variant) file);
                 } else {
-                    throw new IllegalStateException("");
+                    throw new IllegalStateException("Unknown stage file format : " + file.getClass());
                 }
                 if (MongoDBVariantStoragePipeline.SKIPPED_VARIANTS.contains(variant.getType())) {
                     mongoDBOps.setSkipped(mongoDBOps.getSkipped() + 1);

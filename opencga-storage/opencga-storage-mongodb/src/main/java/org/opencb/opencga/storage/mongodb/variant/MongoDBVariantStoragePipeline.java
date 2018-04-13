@@ -216,7 +216,7 @@ public class MongoDBVariantStoragePipeline extends VariantStoragePipeline {
         if (options.getBoolean(DIRECT_LOAD.key(), DIRECT_LOAD.defaultValue())) {
             // TODO: Check if can execute direct load
             BatchFileOperation operation = addBatchOperation(studyConfiguration, DIRECT_LOAD.key(), Collections.singletonList(fileId),
-                    isResume(options), BatchFileOperation.Type.LOAD);
+                    isResume(options), BatchFileOperation.Type.LOAD, b -> true);
             if (operation.getStatus().size() > 1) {
                 options.put(Options.RESUME.key(), true);
                 options.put(STAGE_RESUME.key(), true);
@@ -326,11 +326,29 @@ public class MongoDBVariantStoragePipeline extends VariantStoragePipeline {
                 ptr = new ParallelTaskRunner<>(variantReader, remapIdsTask.then(converter), loader, config);
             }
 
+            Thread monitor = new Thread(() -> {
+                try {
+                    int i = 0;
+                    while (true) {
+                        if (i > 30) {
+                            Thread.sleep(TimeUnit.MINUTES.toMillis(30));
+                        } else if (i > 10) {
+                            Thread.sleep(TimeUnit.MINUTES.toMillis(10));
+                        } else {
+                            Thread.sleep(TimeUnit.SECONDS.toMillis(30));
+                        }
+                        ptr.printTimes();
+                        i++;
+                    }
+                } catch (InterruptedException e) {}
+            });
             Thread hook = getStudyConfigurationManager().buildShutdownHook(DIRECT_LOAD.key(), studyId, fileId);
             try {
+                monitor.start();
                 Runtime.getRuntime().addShutdownHook(hook);
                 ptr.run();
                 getStudyConfigurationManager().atomicSetStatus(studyId, BatchFileOperation.Status.DONE, DIRECT_LOAD.key(), fileIds);
+                monitor.interrupt();
             } finally {
                 Runtime.getRuntime().removeShutdownHook(hook);
             }
@@ -811,6 +829,11 @@ public class MongoDBVariantStoragePipeline extends VariantStoragePipeline {
         long expectedSkippedVariants = 0;
         long alreadyLoadedVariants = options.getLong(ALREADY_LOADED_VARIANTS.key(), 0L);
 
+        if (fileMetadata == null || fileMetadata.getStats() == null || fileMetadata.getStats().getVariantTypeCounts() == null) {
+            logger.warn("Unable to checkLoadedVariants! fileMetadata == null, skip checkLoadedVariants for file {}!", fileId);
+            logger.info("count: {}, overlappedCount: {}", count, overlappedCount);
+            return;
+        }
         for (Map.Entry<String, Integer> entry : fileMetadata.getStats().getVariantTypeCounts().entrySet()) {
             if (SKIPPED_VARIANTS.contains(VariantType.valueOf(entry.getKey()))) {
                 expectedSkippedVariants += entry.getValue();
