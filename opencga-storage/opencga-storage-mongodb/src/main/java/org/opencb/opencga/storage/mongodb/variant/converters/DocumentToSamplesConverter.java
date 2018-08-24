@@ -55,9 +55,11 @@ public class DocumentToSamplesConverter extends AbstractDocumentConverter {
     // . Use "getIndexedIdSamplesMap()"
     private final Map<Integer, LinkedHashMap<String, Integer>> __samplesPosition;
     private final Map<Integer, Set<String>> studyDefaultGenotypeSet;
+    private final Map<Integer, Set<Integer>> __samplesToFiles;
     private Map<Integer, LinkedHashSet<Integer>> includeSamples;
     private StudyConfigurationManager studyConfigurationManager;
     private String unknownGenotype;
+    private List<String> format;
 
     private final org.slf4j.Logger logger = LoggerFactory.getLogger(DocumentToSamplesConverter.class.getName());
 
@@ -101,7 +103,6 @@ public class DocumentToSamplesConverter extends AbstractDocumentConverter {
             }
         }
     };
-    private List<String> format;
 
 
     /**
@@ -111,6 +112,7 @@ public class DocumentToSamplesConverter extends AbstractDocumentConverter {
         studyConfigurations = new HashMap<>();
         __studySamplesId = new HashMap<>();
         __samplesPosition = new HashMap<>();
+        __samplesToFiles = new HashMap<>();
         studyDefaultGenotypeSet = new HashMap<>();
         includeSamples = Collections.emptyMap();
         studyConfigurationManager = null;
@@ -274,14 +276,15 @@ public class DocumentToSamplesConverter extends AbstractDocumentConverter {
             for (Map.Entry<String, Object> dbo : mongoGenotypes.entrySet()) {
                 final String genotype;
                 if (dbo.getKey().equals(UNKNOWN_GENOTYPE)) {
-                    if (unknownGenotype == null) {
-                        continue;
-                    }
-                    if (defaultGenotypes.contains(unknownGenotype)) {
-                        continue;
-                    } else {
-                        genotype = unknownGenotype;
-                    }
+                    continue;
+//                    if (unknownGenotype == null) {
+//                        continue;
+//                    }
+//                    if (defaultGenotypes.contains(unknownGenotype)) {
+//                        continue;
+//                    } else {
+//                        genotype = unknownGenotype;
+//                    }
                 } else {
                     genotype = genotypeToDataModelType(dbo.getKey());
                 }
