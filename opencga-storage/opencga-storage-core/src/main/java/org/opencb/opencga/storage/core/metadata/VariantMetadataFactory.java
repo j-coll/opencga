@@ -69,15 +69,22 @@ public class VariantMetadataFactory {
                         }
                         return fileId;
                     }).collect(Collectors.toList());
-            Query query = new Query()
-                    .append(VariantFileMetadataDBAdaptor.VariantFileMetadataQueryParam.STUDY_ID.key(), studyConfiguration.getStudyId())
-                    .append(VariantFileMetadataDBAdaptor.VariantFileMetadataQueryParam.FILE_ID.key(), fileIds);
-            scm.variantFileMetadataIterator(query, new QueryOptions()).forEachRemaining(fileMetadata -> {
-                studyMetadata.getFiles().removeIf(file -> file.getId().equals(fileMetadata.getId()));
-                studyMetadata.getFiles().add(fileMetadata.getImpl());
-            });
+            if (fileIds != null && !fileIds.isEmpty()) {
+                Query query = new Query()
+                        .append(VariantFileMetadataDBAdaptor.VariantFileMetadataQueryParam.STUDY_ID.key(), studyConfiguration.getStudyId())
+                        .append(VariantFileMetadataDBAdaptor.VariantFileMetadataQueryParam.FILE_ID.key(), fileIds);
+                scm.variantFileMetadataIterator(query, new QueryOptions()).forEachRemaining(fileMetadata -> {
+                    studyMetadata.getFiles().removeIf(file -> file.getId().equals(fileMetadata.getId()));
+                    studyMetadata.getFiles().add(fileMetadata.getImpl());
+                });
+            }
         }
+/*
+2018-09-21 10:41:41,639 INFO [htable-pool3-t14] org.apache.hadoop.hbase.client.AsyncProcess: #3, table=opencga_gel_GEL_variants, attempt=23/35 failed=148ops, last exception: org.apache.hadoop.hbase.RegionTooBusyException: org.apache.hadoo
+p.hbase.RegionTooBusyException: Above memstore limit, regionName=opencga_gel_GEL_variants,3\x00\x05]I\xC7,1537525912460.749d5df771185cf17224e6670b566b2a., server=gelhdp011.hdp.cor00004.cni.ukcloud.com,16020,1536828899416, memstoreSize=540
+243712, blockingMemStoreSize=536870912
 
+ */
         return metadata;
     }
 
