@@ -16,9 +16,15 @@
 
 package org.opencb.opencga.storage.core.variant.annotation.annotators;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
 import org.apache.commons.lang3.StringUtils;
+import org.opencb.biodata.models.clinical.interpretation.VariantClassification;
 import org.opencb.biodata.models.variant.Variant;
 import org.opencb.biodata.models.variant.avro.AdditionalAttribute;
+import org.opencb.biodata.models.variant.avro.DrugResponseClassification;
 import org.opencb.biodata.models.variant.avro.VariantAnnotation;
 import org.opencb.commons.datastore.core.ObjectMap;
 import org.opencb.commons.datastore.core.QueryOptions;
@@ -29,6 +35,7 @@ import org.opencb.opencga.storage.core.variant.annotation.VariantAnnotatorExcept
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -74,7 +81,8 @@ public abstract class AbstractCellBaseVariantAnnotator extends VariantAnnotator 
         if (!params.getBoolean(ANNOTATOR_CELLBASE_USE_CACHE)) {
             queryOptions.append("useCache", false);
         }
-        impreciseVariants = params.getBoolean(ANNOTATOR_CELLBASE_IMPRECISE_VARIANTS, true);
+//        impreciseVariants = params.getBoolean(ANNOTATOR_CELLBASE_IMPRECISE_VARIANTS, true);
+        impreciseVariants = true;
 
         checkNotNull(cellbaseVersion, "cellbase version");
         checkNotNull(species, "species");
@@ -184,6 +192,28 @@ public abstract class AbstractCellBaseVariantAnnotator extends VariantAnnotator 
     static RuntimeException unexpectedVariantOrderException(Object expected, Object actual) {
         return new IllegalArgumentException("Variants not in the expected order! "
                 + "Expected '" + expected + "', " + "but got '" + actual + "'.");
+    }
+
+    public static class DrugResponseClassificationDeserializer extends JsonDeserializer<DrugResponseClassification> {
+
+        @Override
+        public DrugResponseClassification deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JsonProcessingException {
+            String value = jsonParser.getValueAsString();
+            if (value == null) {
+                return null;
+            } else {
+                try {
+                    return DrugResponseClassification.valueOf(value);
+                } catch (IllegalArgumentException e) {
+                    return null;
+//                    switch (value.toLowerCase()) {
+//                        case "responsive":
+//                            return DrugResponseClassification.
+//
+//                    }
+                }
+            }
+        }
     }
 
 }

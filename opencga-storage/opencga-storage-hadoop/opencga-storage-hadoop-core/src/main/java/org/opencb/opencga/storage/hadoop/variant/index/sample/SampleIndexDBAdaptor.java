@@ -54,14 +54,15 @@ public class SampleIndexDBAdaptor {
     }
 
     public VariantDBIterator iterator(SampleIndexQuery query) {
-        return iterator(query.getRegions(), query.getStudy(), query.getSamplesMap(), query.getQueryOperation());
-    }
+        List<Region> regions = query.getRegions();
+        String study = query.getStudy();
+        Map<String, List<String>> samples = query.getSamplesMap();
+        QueryOperation operation = query.getQueryOperation();
+        byte annotationMask = query.getAnnotationMask();
 
-    public VariantDBIterator iterator(List<Region> regions, String study, Map<String, List<String>> samples,
-                                                 QueryOperation operation) {
         if (samples.size() == 1) {
             Map.Entry<String, List<String>> entry = samples.entrySet().iterator().next();
-            return iterator(regions, study, entry.getKey(), entry.getValue());
+            return iterator(regions, study, entry.getKey(), entry.getValue(), annotationMask);
         } else if (samples.isEmpty()) {
             throw new VariantQueryException("At least one sample expected to query SampleIndex!");
         }
@@ -80,7 +81,7 @@ public class SampleIndexDBAdaptor {
             }
             String sample = entry.getKey();
             if (gts.stream().allMatch(SampleIndexDBLoader::validGenotype)) {
-                iterators.add(internalIterator(regions, studyId, sample, gts));
+                iterators.add(internalIterator(regions, studyId, sample, gts, annotationMask));
             } else {
                 if (operation.equals(QueryOperation.OR)) {
                     throw new IllegalArgumentException("Unable to query by REF or MISS genotypes!");
@@ -91,7 +92,7 @@ public class SampleIndexDBAdaptor {
                 // Skip if GTs to query is empty!
                 // Otherwise, it will return ALL genotypes instead of none
                 if (!queryGts.isEmpty()) {
-                    negatedIterators.add(internalIterator(regions, studyId, sample, queryGts));
+                    negatedIterators.add(internalIterator(regions, studyId, sample, queryGts, annotationMask));
                 }
             }
         }
@@ -105,7 +106,7 @@ public class SampleIndexDBAdaptor {
 
     }
 
-    public VariantDBIterator iterator(List<Region> regions, String study, String sample, List<String> gts) {
+    private VariantDBIterator iterator(List<Region> regions, String study, String sample, List<String> gts, byte annotationMask) {
 
         Integer studyId = getStudyId(study);
 
@@ -116,7 +117,7 @@ public class SampleIndexDBAdaptor {
             filteredGts = Collections.singletonList("x/x");
         }
 
-        return internalIterator(regions, studyId, sample, filteredGts);
+        return internalIterator(regions, studyId, sample, filteredGts, annotationMask);
     }
 
     /**
@@ -125,14 +126,16 @@ public class SampleIndexDBAdaptor {
      * @param studyId   Study ID
      * @param sample    Sample
      * @param gts       Processed list of GTs. Real GTs only.
+     * @param annotationMask
      * @return          SingleSampleIndexVariantDBIterator
      */
-    private SingleSampleIndexVariantDBIterator internalIterator(List<Region> regions, int studyId, String sample, List<String> gts) {
+    private SingleSampleIndexVariantDBIterator internalIterator(List<Region> regions, int studyId, String sample, List<String> gts,
+                                                                byte annotationMask) {
         String tableName = tableNameGenerator.getSampleIndexTableName(studyId);
 
         try {
             return hBaseManager.act(tableName, table -> {
-                return new SingleSampleIndexVariantDBIterator(table, regions, studyId, sample, gts, this);
+                return new SingleSampleIndexVariantDBIterator(table, regions, studyId, sample, gts, annotationMask, this);
             });
         } catch (IOException e) {
             throw VariantQueryException.internalException(e);
@@ -158,7 +161,7 @@ public class SampleIndexDBAdaptor {
         });
     }
 
-    public long count(List<Region> regions, String study, String sample, List<String> gts) {
+    public long count(List<Region> regions, String study, String sample, List<String> gts, byte annotationMask) {
         List<Region> regionsList;
         if (CollectionUtils.isEmpty(regions)) {
             // If no regions are defined, get a list of one null element to initialize the stream.
@@ -183,7 +186,7 @@ public class SampleIndexDBAdaptor {
                     List<Region> subRegions = region == null ? Collections.singletonList((Region) null) : splitRegion(region);
                     for (Region subRegion : subRegions) {
                         if (subRegion == null || startsAtBatch(subRegion) && endsAtBatch(subRegion)) {
-                            SampleIndexConverter converter = new SampleIndexConverter(subRegion);
+                            SampleIndexConverter converter = new SampleIndexConverter(subRegion, annotationMask);
                             Scan scan = parse(subRegion, studyId, sample, finalGts, true);
                             try {
                                 ResultScanner scanner = table.getScanner(scan);
@@ -196,7 +199,7 @@ public class SampleIndexDBAdaptor {
                                 throw VariantQueryException.internalException(e);
                             }
                         } else {
-                            SampleIndexConverter converter = new SampleIndexConverter(subRegion);
+                            SampleIndexConverter converter = new SampleIndexConverter(subRegion, annotationMask);
                             Scan scan = parse(subRegion, studyId, sample, finalGts, false);
                             try {
                                 ResultScanner scanner = table.getScanner(scan);

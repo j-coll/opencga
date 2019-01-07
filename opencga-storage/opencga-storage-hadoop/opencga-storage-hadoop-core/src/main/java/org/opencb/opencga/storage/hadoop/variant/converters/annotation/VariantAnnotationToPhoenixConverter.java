@@ -265,23 +265,7 @@ public class VariantAnnotationToPhoenixConverter extends AbstractPhoenixConverte
     Put buildPut(VariantAnnotation variantAnnotation) {
         Map<PhoenixHelper.Column, ?> map = convert(variantAnnotation);
 
-        byte[] bytesRowKey = null;
-        if (variantAnnotation.getAdditionalAttributes() != null) {
-            AdditionalAttribute additionalAttribute = variantAnnotation.getAdditionalAttributes().get(GROUP_NAME.key());
-            if (additionalAttribute != null) {
-                String variantString = additionalAttribute
-                        .getAttribute()
-                        .get(VARIANT_ID.key());
-                if (StringUtils.isNotEmpty(variantString)) {
-                    bytesRowKey = generateVariantRowKey(new Variant(variantString));
-                }
-            }
-        }
-        if (bytesRowKey == null) {
-            bytesRowKey = VariantPhoenixKeyFactory.generateSimpleVariantRowKey(
-                    variantAnnotation.getChromosome(), variantAnnotation.getStart(),
-                    variantAnnotation.getReference(), variantAnnotation.getAlternate());
-        }
+        byte[] bytesRowKey = generateVariantRowKey(variantAnnotation);
         Put put = new Put(bytesRowKey);
 
         for (PhoenixHelper.Column column : VariantPhoenixHelper.PRIMARY_KEY) {

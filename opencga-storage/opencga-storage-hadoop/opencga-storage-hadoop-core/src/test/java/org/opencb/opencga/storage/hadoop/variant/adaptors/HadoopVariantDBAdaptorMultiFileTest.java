@@ -7,6 +7,7 @@ import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.opencb.biodata.models.core.Region;
 import org.opencb.biodata.models.variant.Variant;
+import org.opencb.biodata.models.variant.annotation.ConsequenceTypeMappings;
 import org.opencb.commons.datastore.core.ObjectMap;
 import org.opencb.commons.datastore.core.Query;
 import org.opencb.commons.datastore.core.QueryOptions;
@@ -28,6 +29,7 @@ import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.opencb.opencga.storage.core.variant.adaptors.VariantMatchers.*;
+import static org.opencb.opencga.storage.core.variant.adaptors.VariantQueryParam.*;
 
 /**
  * Created on 24/10/17.
@@ -56,7 +58,8 @@ public class HadoopVariantDBAdaptorMultiFileTest extends VariantDBAdaptorMultiFi
     protected ObjectMap getOptions() {
         return new ObjectMap()
                 .append(HadoopVariantStorageEngine.VARIANT_TABLE_INDEXES_SKIP, true)
-                .append(VariantStorageEngine.Options.MERGE_MODE.key(), VariantStorageEngine.MergeMode.BASIC);
+                .append(VariantStorageEngine.Options.MERGE_MODE.key(), VariantStorageEngine.MergeMode.BASIC)
+                .append(VariantStorageEngine.Options.ANNOTATE.key(), true);
     }
 
 
@@ -84,6 +87,28 @@ public class HadoopVariantDBAdaptorMultiFileTest extends VariantDBAdaptorMultiFi
                 .append(VariantQueryParam.INCLUDE_FILE.key(), "1K.end.platinum-genomes-vcf-NA12877_S1.genome.vcf.gz"), options);
         assertEquals(expectedSource, queryResult.getSource());
         assertThat(queryResult, everyResult(allVariants, withStudy("S_1", allOf(withFileId("1K.end.platinum-genomes-vcf-NA12877_S1.genome.vcf.gz"), withSampleData("NA12877", "GT", containsString("1"))))));
+    }
+
+    @Test
+    public void testMissenseVarinat() {
+        String so = ConsequenceTypeMappings.getSoAccessionString("missense_variant");
+
+        Query query = new Query()
+                .append(STUDY.key(), "S_1")
+                .append(SAMPLE.key(), "NA12877");
+        System.out.println("----------------------------------------------------------");
+        queryResult = query(query, new QueryOptions());
+        System.out.println("Sample query: " + queryResult.getNumResults());
+        System.out.println("----------------------------------------------------------");
+        query.append(ANNOT_BIOTYPE.key(), "protein_coding");
+//        query.append(ANNOT_CONSEQUENCE_TYPE.key(), "missense_variant");
+        queryResult = query(query, new QueryOptions());
+        System.out.println("Query + annotation " + queryResult.getNumResults());
+        System.out.println("----------------------------------------------------------");
+        queryResult = variantStorageEngine.get(query, new QueryOptions());
+        System.out.println("queryResult.getNumResults() = " + queryResult.getNumResults());
+//        assertThat(queryResult, everyResult(allVariants, hasAnnotation(hasSO(hasItem(so)))));
+//        assertThat(queryResult, numResults(gt(0)));
     }
 
     @Test
@@ -310,7 +335,7 @@ public class HadoopVariantDBAdaptorMultiFileTest extends VariantDBAdaptorMultiFi
 
         for (List<Region> regions : regionLists) {
             StopWatch stopWatch = StopWatch.createStarted();
-            long actualCount = ((HadoopVariantStorageEngine) variantStorageEngine).getSampleIndexDBAdaptor().count(regions, "S_1", "NA12877", Arrays.asList("0/1", "1/1"));
+            long actualCount = ((HadoopVariantStorageEngine) variantStorageEngine).getSampleIndexDBAdaptor().count(regions, "S_1", "NA12877", Arrays.asList("0/1", "1/1"), (byte) 0);
             Query query = new Query(VariantQueryParam.STUDY.key(), "S_1")
                     .append(VariantQueryParam.SAMPLE.key(), "NA12877");
             if (regions != null) {

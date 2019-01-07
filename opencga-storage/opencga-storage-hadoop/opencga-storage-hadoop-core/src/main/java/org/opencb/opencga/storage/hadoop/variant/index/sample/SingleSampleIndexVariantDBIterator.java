@@ -11,6 +11,7 @@ import org.opencb.biodata.models.variant.Variant;
 import org.opencb.opencga.storage.core.variant.adaptors.iterators.VariantDBIterator;
 import org.opencb.opencga.storage.core.variant.adaptors.VariantQueryException;
 import org.opencb.opencga.storage.core.variant.adaptors.VariantQueryUtils;
+import org.opencb.opencga.storage.hadoop.utils.PersistentScanner;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,7 +29,7 @@ public class SingleSampleIndexVariantDBIterator extends VariantDBIterator {
     protected int count = 0;
 
     public SingleSampleIndexVariantDBIterator(Table table, List<Region> regions, Integer studyId, String sample, List<String> gts,
-                                       SampleIndexDBAdaptor dbAdaptor) {
+                                              byte annotationMask, SampleIndexDBAdaptor dbAdaptor) {
         if (CollectionUtils.isEmpty(regions)) {
             // If no regions are defined, get a list of one null element to initialize the stream.
             regions = Collections.singletonList(null);
@@ -40,7 +41,7 @@ public class SingleSampleIndexVariantDBIterator extends VariantDBIterator {
                 .map(region -> {
                     // One scan per region
                     Scan scan = dbAdaptor.parse(region, studyId, sample, gts, false);
-                    SampleIndexConverter converter = new SampleIndexConverter(region);
+                    SampleIndexConverter converter = new SampleIndexConverter(region, annotationMask);
                     try {
                         ResultScanner scanner = table.getScanner(scan);
                         addCloseable(scanner);
@@ -69,6 +70,7 @@ public class SingleSampleIndexVariantDBIterator extends VariantDBIterator {
     public Variant next() {
         Variant variant = fetch(iterator::next);
         count++;
+        System.out.println("count = " + count + " -> " + variant);
         return variant;
     }
 

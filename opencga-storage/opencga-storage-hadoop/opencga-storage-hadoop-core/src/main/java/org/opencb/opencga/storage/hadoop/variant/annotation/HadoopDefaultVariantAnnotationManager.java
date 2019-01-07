@@ -27,6 +27,8 @@ import org.opencb.commons.io.DataReader;
 import org.opencb.commons.run.ParallelTaskRunner;
 import org.opencb.opencga.storage.core.exceptions.StorageEngineException;
 import org.opencb.opencga.storage.core.metadata.ProjectMetadata;
+import org.opencb.opencga.storage.core.metadata.StudyConfiguration;
+import org.opencb.opencga.storage.core.metadata.StudyConfigurationManager;
 import org.opencb.opencga.storage.core.variant.adaptors.VariantQueryParam;
 import org.opencb.opencga.storage.core.variant.adaptors.VariantQueryUtils;
 import org.opencb.opencga.storage.core.variant.annotation.DefaultVariantAnnotationManager;
@@ -38,8 +40,13 @@ import org.opencb.opencga.storage.hadoop.variant.HadoopVariantStorageEngine;
 import org.opencb.opencga.storage.hadoop.variant.adaptors.VariantHadoopDBAdaptor;
 import org.opencb.opencga.storage.hadoop.variant.converters.annotation.VariantAnnotationToHBaseConverter;
 import org.opencb.opencga.storage.hadoop.variant.executors.MRExecutor;
+import org.opencb.opencga.storage.hadoop.variant.index.annotation.AnnotationIndexDBLoader;
 import org.opencb.opencga.storage.hadoop.variant.index.phoenix.VariantPhoenixHelper;
+import org.opencb.opencga.storage.hadoop.variant.index.sample.SampleIndexAnnotationLoader;
 
+import java.io.IOException;
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 
@@ -72,17 +79,37 @@ public class HadoopDefaultVariantAnnotationManager extends DefaultVariantAnnotat
                     .getAnnotation().getCurrent().getId();
             VariantAnnotationToHBaseConverter task =
                     new VariantAnnotationToHBaseConverter(dbAdaptor.getGenomeHelper(), progressLogger, currentAnnotationId);
-
+            AnnotationIndexDBLoader annotationIndexDBLoader = new AnnotationIndexDBLoader(dbAdaptor.getHBaseManager(), dbAdaptor.getTableNameGenerator().getAnnotationIndexTableName());
             VariantAnnotationHadoopDBWriter writer = new VariantAnnotationHadoopDBWriter(
                     dbAdaptor.getHBaseManager(),
                     dbAdaptor.getVariantTable(),
                     dbAdaptor.getGenomeHelper().getColumnFamily());
-            return new ParallelTaskRunner<>(reader, task, writer, config);
+            return new ParallelTaskRunner<>(reader, task.also(annotationIndexDBLoader), writer, config);
         } else {
             return new ParallelTaskRunner<>(reader,
                     () -> dbAdaptor.newAnnotationLoader(new QueryOptions(params))
                             .setProgressLogger(progressLogger), null, config);
         }
+    }
+
+    @Override
+    public void loadVariantAnnotation(URI uri, ObjectMap params) throws IOException, StorageEngineException {
+        super.loadVariantAnnotation(uri, params);
+
+        StudyConfigurationManager scm = dbAdaptor.getStudyConfigurationManager();
+        SampleIndexAnnotationLoader indexAnnotationLoader = new SampleIndexAnnotationLoader(
+                dbAdaptor.getGenomeHelper(),
+                dbAdaptor.getHBaseManager(),
+                dbAdaptor.getTableNameGenerator(),
+                scm);
+
+        // TODO: Do not update all samples
+        for (Integer studyId : scm.getStudyIds(null)) {
+            StudyConfiguration sc = scm.getStudyConfiguration(studyId, null).first();
+
+            indexAnnotationLoader.updateSampleAnnotation(studyId, new ArrayList<>(sc.getSampleIds().values()));
+        }
+
     }
 
     @Override
