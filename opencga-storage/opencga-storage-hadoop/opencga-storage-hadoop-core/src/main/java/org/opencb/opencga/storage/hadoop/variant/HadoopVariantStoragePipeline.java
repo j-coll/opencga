@@ -45,6 +45,7 @@ import org.opencb.opencga.storage.core.io.plain.StringDataWriter;
 import org.opencb.opencga.storage.core.io.proto.ProtoFileWriter;
 import org.opencb.opencga.storage.core.metadata.VariantStorageMetadataManager;
 import org.opencb.opencga.storage.core.metadata.models.FileMetadata;
+import org.opencb.opencga.storage.core.metadata.models.ProjectMetadata;
 import org.opencb.opencga.storage.core.metadata.models.StudyMetadata;
 import org.opencb.opencga.storage.core.variant.VariantStorageEngine;
 import org.opencb.opencga.storage.core.variant.VariantStoragePipeline;
@@ -308,6 +309,31 @@ public abstract class HadoopVariantStoragePipeline extends VariantStoragePipelin
             throw new StorageHadoopException("Issue creating table " + variantsTableCredentials.getTable(), e);
         }
 
+        VariantPhoenixHelper phoenixHelper = new VariantPhoenixHelper(dbAdaptor.getGenomeHelper());
+        Connection jdbcConnection = dbAdaptor.getJdbcConnection();
+        String variantsTableName = dbAdaptor.getVariantTable();
+        int studyId = getStudyId();
+
+        try {
+            phoenixHelper.registerNewStudy(jdbcConnection, variantsTableName, studyId);
+        } catch (SQLException e) {
+            throw new StorageEngineException("Unable to register study in Phoenix", e);
+        }
+
+        try {
+            ProjectMetadata projectMetadata = getMetadataManager().getProjectMetadata();
+            if (projectMetadata.getSpecies().equals("hsapiens")) {
+                List<PhoenixHelper.Column> columns = VariantPhoenixHelper.getHumanPopulationFrequenciesColumns();
+                phoenixHelper.addMissingColumns(jdbcConnection, variantsTableName, columns, true);
+            }
+
+            int release = projectMetadata.getRelease();
+            phoenixHelper.registerRelease(jdbcConnection, variantsTableName, release);
+
+        } catch (SQLException e) {
+            throw new StorageEngineException("Unable to register population frequency columns in Phoenix", e);
+        }
+
         return input;
     }
 
@@ -391,88 +417,16 @@ public abstract class HadoopVariantStoragePipeline extends VariantStoragePipelin
         VariantStorageMetadataManager metadataManager = getMetadataManager();
         final String species = metadataManager.getProjectMetadata().getSpecies();
 
-        Long lock = null;
-        try {
-            long lockDuration = TimeUnit.MINUTES.toMillis(5);
-            try {
-                lock = metadataManager.lockStudy(studyId, lockDuration,
-                        TimeUnit.SECONDS.toMillis(5), GenomeHelper.PHOENIX_LOCK_COLUMN);
-            } catch (StorageEngineException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof TimeoutException) {
-                    int timeout = 30;
-                    StopWatch stopWatch = StopWatch.createStarted();
-                    logger.info("Waiting to get Lock over HBase table {} up to {} minutes ...", metaTableName, timeout);
-                    lock = metadataManager.lockStudy(studyId, lockDuration,
-                            TimeUnit.MINUTES.toMillis(timeout), GenomeHelper.PHOENIX_LOCK_COLUMN);
-                    stopWatch.stop();
-                    if (stopWatch.getTime(TimeUnit.MINUTES) > 3) {
-                        logger.warn("Slow HBase lock: " + TimeUtils.durationToString(stopWatch));
-                    }
-                } else {
-                    throw e;
-                }
-            }
-            StopWatch stopWatch = StopWatch.createStarted();
-
-            try {
-                phoenixHelper.registerNewStudy(jdbcConnection, variantsTableName, studyId);
-            } catch (SQLException e) {
-                throw new StorageEngineException("Unable to register study in Phoenix", e);
-            }
-
-            try {
-                if (species.equals("hsapiens")) {
-                    List<PhoenixHelper.Column> columns = VariantPhoenixHelper.getHumanPopulationFrequenciesColumns();
-                    phoenixHelper.addMissingColumns(jdbcConnection, variantsTableName, columns, true);
-                }
-            } catch (SQLException e) {
-                throw new StorageEngineException("Unable to register population frequency columns in Phoenix", e);
-            }
-
-            try {
-                BiMap<String, Integer> indexedSamples = metadataManager.getIndexedSamplesMap(studyId);
-                Set<Integer> previouslyIndexedSamples = indexedSamples.values();
-                Set<Integer> newSamples = new HashSet<>();
-                for (Integer fileId : fileIds) {
-                    FileMetadata fileMetadata = metadataManager.getFileMetadata(studyId, fileId);
-                    for (Integer sampleId : fileMetadata.getSamples()) {
-                        if (!previouslyIndexedSamples.contains(sampleId)) {
-                            newSamples.add(sampleId);
-                        }
-                    }
-                }
-                phoenixHelper.registerNewFiles(jdbcConnection, variantsTableName, studyId, fileIds,
-                        newSamples);
-
-                int release = metadataManager.getProjectMetadata().getRelease();
-                phoenixHelper.registerRelease(jdbcConnection, variantsTableName, release);
-
-            } catch (SQLException e) {
-                throw new StorageEngineException("Unable to register samples in Phoenix", e);
-            }
-
-            stopWatch.stop();
-            String msg = "Added new columns to Phoenix in " + TimeUtils.durationToString(stopWatch);
-            if (stopWatch.getTime(TimeUnit.SECONDS) < 10) {
-                logger.info(msg);
-            } else {
-                logger.warn("Slow phoenix response");
-                logger.warn(msg);
-            }
-        } catch (StorageEngineException e) {
-            throw new StorageEngineException("Error locking table to modify Phoenix columns!", e);
-        } finally {
-            try {
-                if (lock != null) {
-                    metadataManager.unLockStudy(studyId, lock, GenomeHelper.PHOENIX_LOCK_COLUMN);
-                }
-            } catch (HBaseLock.IllegalLockStatusException e) {
-                logger.warn(e.getMessage());
-                logger.debug(e.getMessage(), e);
-            }
+        Set<Integer> newSamples = new HashSet<>();
+        for (Integer fileId : fileIds) {
+            newSamples.addAll(metadataManager.getFileMetadata(studyId, fileId).getSamples());
         }
 
+        List<PhoenixHelper.Column> columns = phoenixHelper.getNewFileColumns(studyId, fileIds, newSamples);
+
+        lockAndRegisterColumns(jdbcConnection, phoenixHelper, columns);
+
+        Long lock;
         if (VariantPhoenixHelper.DEFAULT_TABLE_TYPE == PTableType.VIEW) {
             logger.debug("Skip create indexes for VIEW table");
         } else if (options.getBoolean(VARIANT_TABLE_INDEXES_SKIP, false)) {
@@ -502,6 +456,63 @@ public abstract class HadoopVariantStoragePipeline extends VariantStoragePipelin
                 if (lock != null) {
                     metadataManager.unLockStudy(studyId, lock, PHOENIX_INDEX_LOCK_COLUMN);
                 }
+            }
+        }
+    }
+
+    private void lockAndRegisterColumns(Connection jdbcConnection, VariantPhoenixHelper phoenixHelper, List<PhoenixHelper.Column> columns)
+            throws StorageEngineException {
+        int studyId = getStudyId();
+        VariantStorageMetadataManager metadataManager = getMetadataManager();
+        Long lock = null;
+        try {
+            long lockDuration = TimeUnit.MINUTES.toMillis(5);
+            try {
+                lock = metadataManager.lockStudy(studyId, lockDuration,
+                        TimeUnit.SECONDS.toMillis(5), GenomeHelper.PHOENIX_LOCK_COLUMN);
+            } catch (StorageEngineException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof TimeoutException) {
+                    int timeout = 30;
+                    StopWatch stopWatch = StopWatch.createStarted();
+                    logger.info("Waiting to get Lock over HBase table {} up to {} minutes ...",
+                            dbAdaptor.getTableNameGenerator().getMetaTableName(), timeout);
+                    lock = metadataManager.lockStudy(studyId, lockDuration,
+                            TimeUnit.MINUTES.toMillis(timeout), GenomeHelper.PHOENIX_LOCK_COLUMN);
+                    stopWatch.stop();
+                    if (stopWatch.getTime(TimeUnit.MINUTES) > 3) {
+                        logger.warn("Slow HBase lock: " + TimeUtils.durationToString(stopWatch));
+                    }
+                } else {
+                    throw e;
+                }
+            }
+            StopWatch stopWatch = StopWatch.createStarted();
+
+            try {
+                phoenixHelper.addMissingColumns(jdbcConnection, getDBAdaptor().getVariantTable(), columns, true);
+            } catch (SQLException e) {
+                throw new StorageEngineException("Unable to register samples in Phoenix", e);
+            }
+
+            stopWatch.stop();
+            String msg = "Added new columns to Phoenix in " + TimeUtils.durationToString(stopWatch);
+            if (stopWatch.getTime(TimeUnit.SECONDS) < 10) {
+                logger.info(msg);
+            } else {
+                logger.warn("Slow phoenix response");
+                logger.warn(msg);
+            }
+        } catch (StorageEngineException e) {
+            throw new StorageEngineException("Error locking table to modify Phoenix columns!", e);
+        } finally {
+            try {
+                if (lock != null) {
+                    metadataManager.unLockStudy(studyId, lock, GenomeHelper.PHOENIX_LOCK_COLUMN);
+                }
+            } catch (HBaseLock.IllegalLockStatusException e) {
+                logger.warn(e.getMessage());
+                logger.debug(e.getMessage(), e);
             }
         }
     }

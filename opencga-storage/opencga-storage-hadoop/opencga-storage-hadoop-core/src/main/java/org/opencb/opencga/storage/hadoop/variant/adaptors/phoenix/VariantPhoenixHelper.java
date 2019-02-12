@@ -310,8 +310,11 @@ public class VariantPhoenixHelper {
 
     public void registerNewFiles(Connection con, String variantsTableName, Integer studyId, Collection<Integer> fileIds,
                                  Collection<Integer> sampleIds) throws SQLException {
-        HBaseVariantTableNameGenerator.checkValidVariantsTableName(variantsTableName);
-        createTableIfNeeded(con, variantsTableName);
+        List<Column> columns = getNewFileColumns(studyId, fileIds, sampleIds);
+        addMissingColumns(con, variantsTableName, columns, true);
+    }
+
+    public List<Column> getNewFileColumns(Integer studyId, Collection<Integer> fileIds, Collection<Integer> sampleIds) {
         List<Column> columns = new ArrayList<>(fileIds.size() + sampleIds.size() + 1);
         for (Integer fileId : fileIds) {
             columns.add(getFileColumn(studyId, fileId));
@@ -319,8 +322,7 @@ public class VariantPhoenixHelper {
         for (Integer sampleId : sampleIds) {
             columns.add(getSampleColumn(studyId, sampleId));
         }
-        phoenixHelper.addMissingColumns(con, variantsTableName, columns, true, DEFAULT_TABLE_TYPE);
-        con.commit();
+        return columns;
     }
 
     public void registerRelease(Connection con, String table, int release) throws SQLException {
@@ -379,10 +381,19 @@ public class VariantPhoenixHelper {
         }
     }
 
+    public void addMissingColumns(Connection connection, String variantsTableName, List<Column> newColumns)
+            throws SQLException {
+        addMissingColumns(connection, variantsTableName, newColumns, true);
+    }
+
     public void addMissingColumns(Connection connection, String variantsTableName, List<Column> newColumns, boolean oneCall)
             throws SQLException {
         HBaseVariantTableNameGenerator.checkValidVariantsTableName(variantsTableName);
+        createTableIfNeeded(connection, variantsTableName);
+
+        HBaseVariantTableNameGenerator.checkValidVariantsTableName(variantsTableName);
         phoenixHelper.addMissingColumns(connection, variantsTableName, newColumns, oneCall, DEFAULT_TABLE_TYPE);
+        connection.commit();
     }
 
     private String buildCreate(String variantsTableName) {

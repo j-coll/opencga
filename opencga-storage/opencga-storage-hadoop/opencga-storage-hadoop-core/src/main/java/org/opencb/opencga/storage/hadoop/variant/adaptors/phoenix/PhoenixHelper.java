@@ -158,7 +158,12 @@ public class PhoenixHelper {
 
     public void addMissingColumns(Connection con, String tableName, Collection<Column> newColumns, boolean oneCall, PTableType tableType)
             throws SQLException {
-        Set<String> columns = getColumns(con, tableName, tableType).stream().map(Column::column).collect(Collectors.toSet());
+        addMissingColumns(con, tableName, newColumns, oneCall, tableType, getColumns(con, tableName, tableType));
+    }
+
+    public void addMissingColumns(Connection con, String tableName, Collection<Column> newColumns, boolean oneCall, PTableType tableType, List<Column> allColumns)
+            throws SQLException {
+        Set<String> columns = allColumns.stream().map(Column::column).collect(Collectors.toSet());
         List<Column> missingColumns = newColumns.stream()
                 .filter(column -> !columns.contains(column.column()))
                 .collect(Collectors.toList());
