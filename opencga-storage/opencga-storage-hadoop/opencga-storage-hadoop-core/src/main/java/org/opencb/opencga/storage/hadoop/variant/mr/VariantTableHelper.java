@@ -134,16 +134,6 @@ public class VariantTableHelper extends GenomeHelper {
         }
     }
 
-    public StudyMetadata readStudyMetadata() throws IOException {
-        try (VariantStorageMetadataManager scm = new VariantStorageMetadataManager(new HBaseVariantStorageMetadataDBAdaptorFactory(this))) {
-            StudyMetadata studyMetadata = scm.getStudyMetadata(getStudyId());
-            if (studyMetadata == null) {
-                throw new IllegalStateException("Only one study configuration expected for study");
-            }
-            return studyMetadata;
-        }
-    }
-
     public byte[] getVariantsTable() {
         return variantsTable;
     }
