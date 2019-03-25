@@ -212,7 +212,7 @@ public class MultiVariantDBIterator extends VariantDBIterator {
 
     private static class VariantQueryIterator implements Iterator<Query>, AutoCloseable {
         private static final int MAX_BATCH_SIZE = 5000;
-        private static final int MIN_BATCH_SIZE = 100;
+        private static final int MIN_BATCH_SIZE = 10;
 
 //        private static final int LAST_MATCH_PROBABILITY_WEIGHT = 5;
 //        private static final int OLD_MATCH_PROBABILITY_WEIGHT = 1;

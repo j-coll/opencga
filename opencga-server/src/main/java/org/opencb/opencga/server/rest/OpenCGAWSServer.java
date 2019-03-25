@@ -254,7 +254,7 @@ public class OpenCGAWSServer {
     private void initLogger(java.nio.file.Path logs) {
         try {
             org.apache.log4j.Logger rootLogger = LogManager.getRootLogger();
-            PatternLayout layout = new PatternLayout("%d{yyyy-MM-dd HH:mm:ss} [%t] %-5p %c{1}:%L - %m%n");
+            PatternLayout layout = new PatternLayout("%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5p %c{1}:%L - %m%n");
             String logFile = logs.resolve("server.log").toString();
             RollingFileAppender rollingFileAppender = new RollingFileAppender(layout, logFile, true);
             rollingFileAppender.setThreshold(Level.DEBUG);

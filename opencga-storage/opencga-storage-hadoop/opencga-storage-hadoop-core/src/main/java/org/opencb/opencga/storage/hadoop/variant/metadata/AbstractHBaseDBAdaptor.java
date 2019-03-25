@@ -117,10 +117,11 @@ public abstract class AbstractHBaseDBAdaptor {
 
         try {
             return hBaseManager.act(tableName, table -> {
-//                logger.info("-------------------------------------");
-//                logger.info("##### scan = " + scan);
-//                logger.info("##### clazz = " + clazz);
-//                logger.info("##### size = " + Iterators.size(table.getScanner(scan).iterator()));
+                logger.debug("-------------------------------------");
+                logger.debug("##### scan = " + scan);
+                logger.debug("##### clazz = " + clazz);
+                new Exception().printStackTrace();
+//                logger.debug("##### size = " + Iterators.size(table.getScanner(scan).iterator()));
                 ResultScanner scanner = table.getScanner(scan);
                 return new IteratorWithClosable<>(Iterators.transform(scanner.iterator(), result -> {
                     try {
@@ -149,7 +150,8 @@ public abstract class AbstractHBaseDBAdaptor {
             return null;
         }
 
-//        logger.debug("Get {} {} from DB {}", clazz.getSimpleName(), Bytes.toString(rowKey), tableName);
+        org.apache.commons.lang3.time.StopWatch s = org.apache.commons.lang3.time.StopWatch.createStarted();
+        logger.debug("Get {} {} from DB {}", clazz.getSimpleName(), Bytes.toString(rowKey), tableName);
         Get get = new Get(rowKey);
         get.addColumn(family, valueColumn);
 
@@ -168,6 +170,9 @@ public abstract class AbstractHBaseDBAdaptor {
             });
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            logger.info("get {} {} from {} in {}", clazz.getSimpleName(), Bytes.toString(rowKey), tableName,
+                    org.opencb.opencga.core.common.TimeUtils.durationToString(s));
         }
     }
 

@@ -448,6 +448,8 @@ public final class VariantQueryUtils {
 
     public static VariantQueryFields parseVariantQueryFields(
             Query query, QueryOptions options, VariantStorageMetadataManager metadataManager) {
+        org.apache.commons.lang3.time.StopWatch s = org.apache.commons.lang3.time.StopWatch.createStarted();
+
         Set<VariantField> includeFields = VariantField.getIncludeFields(options);
         List<Integer> includeStudies = VariantQueryUtils.getIncludeStudies(query, options, metadataManager, includeFields);
 
@@ -495,6 +497,7 @@ public final class VariantQueryUtils {
             }
         }
 
+        logger.info("Parse variantQueryFields in " + org.opencb.opencga.core.common.TimeUtils.durationToString(s));
         return new VariantQueryFields(includeFields, includeStudies, studyMetadata,
                 sampleIds, numTotalSamples != numSamples, numSamples, numTotalSamples, fileIds, cohortIds);
     }
