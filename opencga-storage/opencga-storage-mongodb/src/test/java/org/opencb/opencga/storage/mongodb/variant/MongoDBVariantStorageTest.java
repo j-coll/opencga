@@ -20,7 +20,11 @@ import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.opencb.commons.datastore.mongodb.MongoDataStoreManager;
+import org.opencb.opencga.storage.core.config.IOManagersConfiguration;
+import org.opencb.opencga.storage.core.config.IOManagersConfiguration.IOManagerConfiguration;
 import org.opencb.opencga.storage.core.config.StorageConfiguration;
+import org.opencb.opencga.storage.core.io.TestIOManager;
+import org.opencb.opencga.storage.core.io.managers.PosixIOManager;
 import org.opencb.opencga.storage.core.variant.VariantStorageTest;
 import org.opencb.opencga.storage.mongodb.auth.MongoCredentials;
 import org.slf4j.Logger;
@@ -30,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -53,6 +58,11 @@ public interface MongoDBVariantStorageTest extends VariantStorageTest {
             }
             InputStream is = MongoDBVariantStorageTest.class.getClassLoader().getResourceAsStream("storage-configuration.yml");
             StorageConfiguration storageConfiguration = StorageConfiguration.load(is);
+            if (storageConfiguration.getIo()==null) {
+                storageConfiguration.setIo(new IOManagersConfiguration().setManagers(new HashMap<>()));
+                storageConfiguration.getIo().getManagers().put("local", new IOManagerConfiguration(PosixIOManager.class.getName(), null));
+            }
+            storageConfiguration.getIo().getManagers().put("test", new IOManagerConfiguration(TestIOManager.class.getName(), null));
             storageManager.setConfiguration(storageConfiguration, MongoDBVariantStorageEngine.STORAGE_ENGINE_ID, DB_NAME);
             return storageManager;
         }

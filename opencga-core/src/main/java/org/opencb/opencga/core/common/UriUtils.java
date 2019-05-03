@@ -16,6 +16,8 @@
 
 package org.opencb.opencga.core.common;
 
+import org.apache.http.client.utils.URIBuilder;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -75,5 +77,24 @@ public class UriUtils {
         String path = uri.getPath();
         int idx = path.lastIndexOf("/");
         return idx < 0 ? path : path.substring(idx + 1);
+    }
+
+    public static String dirName(URI uri) {
+//        return uri.relativize(uri.resolve(".")).getPath();
+        String path = uri.getPath();
+        int idx2 = path.lastIndexOf('/');
+        if (idx2 <= 0) {
+            return "/";
+        }
+        int idx1 = path.lastIndexOf('/', idx2 - 1);
+        return path.substring(idx1 + 1, idx2 + 1);
+    }
+
+    public static URI replacePath(URI uri, String path) {
+        try {
+            return new URIBuilder(uri).setPath(path).build();
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 }

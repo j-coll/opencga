@@ -24,18 +24,28 @@ public class PosixIOManager implements IOManager {
     }
 
     @Override
-    public InputStream newInputStream(URI uri) throws IOException {
+    public InputStream newInputStreamRaw(URI uri) throws IOException {
         return Files.newInputStream(Paths.get(uri));
     }
 
     @Override
-    public OutputStream newOutputStream(URI uri) throws IOException {
+    public OutputStream newOutputStreamRaw(URI uri) throws IOException {
         return Files.newOutputStream(Paths.get(uri));
     }
 
     @Override
-    public boolean exists(URI uri) {
+    public boolean exists(URI uri) throws IOException {
         return Files.exists(Paths.get(uri));
+    }
+
+    @Override
+    public boolean isDirectory(URI uri) throws IOException {
+        return Paths.get(uri).toFile().isDirectory();
+    }
+
+    @Override
+    public boolean canWrite(URI uri) throws IOException {
+        return Paths.get(uri).toFile().canWrite();
     }
 
     @Override
